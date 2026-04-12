@@ -1,63 +1,62 @@
-# 💬 Chat Translator
+# 💬 JChat — AI 聊天翻译器
 
-A bilingual chat translation tool powered by AI, designed for real-time conversation translation with tone-aware reply suggestions.
+一个基于 AI 的双向聊天翻译工具，支持语气选择和一键复制回复建议，专为需要跨语言沟通的场景设计。
 
-## Features
+## 功能特点
 
-- 🎭 **6 tone styles**: Formal, Normal, Friend, Funny, Flirty, Arrogant
-- 📥 **Translate incoming**: Understand what the other person said
-- 📤 **Reply suggestions**: Get 3 different phrasing options, one-click copy
-- 🌍 **Multi-language**: Japanese, English, Korean, French, Spanish, Thai
-- 🤖 **Multi-AI support**: Claude / OpenAI / Gemini API
-- 💾 **Scene management**: Save different chat contexts with history
+- 🎭 **6种语气风格**：正式敬语 / 普通正常 / 朋友轻松 / 搞笑逗趣 / 老不正经 / 俯视不屑
+- 📥 **翻译来信**：将对方说的话翻译成中文，快速理解含义
+- 📤 **回复建议**：生成 3 条不同措辞的日语回复，一键复制，直接发送
+- 🌍 **多语言支持**：日语、英语、韩语、法语、西班牙语、泰语等
+- 🤖 **多 AI 支持**：Claude / OpenAI / Gemini，自由切换
+- 💾 **场景管理**：按对话对象新建场景，保存聊天历史
 
-## Demo
+## 在线体验
 
-Live demo: [http://c.areu.pro](http://c.areu.pro)
+[http://c.areu.pro](http://c.areu.pro)
 
-## Quick Start
+## 快速开始
 
-### Requirements
+### 安装依赖
 
 ```bash
 pip install flask requests
 ```
 
-### Run
+### 启动服务
 
 ```bash
 python app.py
 ```
 
-Open `http://localhost:8090` in your browser.
+浏览器打开 `http://localhost:8090`
 
-### Configure API Key
+### 配置 API Key
 
-Go to ⚙️ Settings and enter your API key:
+点击右上角 ⚙️ 设置，输入你的 API Key：
 
-- **Claude**: Get from [console.anthropic.com](https://console.anthropic.com)
-- **OpenAI**: Get from [platform.openai.com](https://platform.openai.com)
-- **Gemini**: Get from [aistudio.google.com](https://aistudio.google.com)
+- **Claude**：前往 [console.anthropic.com](https://console.anthropic.com) 获取
+- **OpenAI**：前往 [platform.openai.com](https://platform.openai.com) 获取
+- **Gemini**：前往 [aistudio.google.com](https://aistudio.google.com) 获取
 
-## How to Use
+## 使用方法
 
-1. **New Scene**: Tap `+` → Enter the person's name, language, and your preferred tone
-2. **Translate incoming**: Tap `📥 对方说了` → Paste what they said → Get translation
-3. **Reply**: Tap `📤 我要回复` → Type your idea in Chinese → Get 3 Japanese reply options → Tap to copy
+1. **新建场景**：点右上角 `＋`，填写对方名字、语言和语气风格
+2. **翻译对方的话**：点 `📥 对方说了` → 粘贴对方的原文 → 获得中文翻译
+3. **生成回复**：点 `📤 我要回复` → 输入你想说的中文 → 获得 3 条回复建议 → 点按钮复制
 
-## Project Structure
+## 项目结构
 
 ```
-├── app.py              # Flask backend
+├── app.py              # Flask 后端
 ├── templates/
-│   └── index.html      # Frontend (single-page app)
-├── data.json           # Runtime data (auto-created, NOT committed)
+│   └── index.html      # 前端（单页应用）
+├── requirements.txt    # 依赖列表
+├── .gitignore
 └── README.md
 ```
 
-## Environment
-
-Data is stored in `data.json` at runtime. This file is in `.gitignore` and should never be committed (contains API keys).
+> ⚠️ `data.json` 为运行时自动生成的数据文件（含 API Key），已加入 `.gitignore`，请勿提交。
 
 ## License
 
