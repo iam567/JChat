@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Chat Translator v3.3</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f0f2f5;height:100dvh;overflow:hidden;display:flex;flex-direction:column}
+
+/* 页面系统 */
+.page{display:none;height:100dvh;flex-direction:column;overflow:hidden}
+.page.active{display:flex}
+
+/* 顶栏 */
+.topbar{background:#1a6b8a;color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;min-height:54px;flex-shrink:0}
+.topbar h1{font-size:18px;font-weight:600}
+.icon-btn{background:rgba(255,255,255,0.2);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+/* 首页场景列表 */
+.list-area{flex:1;overflow-y:auto;padding:12px}
+.scene-card{background:#fff;border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:12px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.08)}
+.scene-avatar{width:46px;height:46px;border-radius:50%;background:#1a6b8a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.scene-info{flex:1}
+.scene-name{font-size:15px;font-weight:600}
+.scene-meta{font-size:12px;color:#888;margin-top:2px}
+.scene-del{background:none;border:none;font-size:22px;color:#ddd;cursor:pointer;padding:4px}
+.empty{text-align:center;color:#aaa;margin-top:80px;font-size:14px}
+
+/* 聊天页 */
+#chatPage{background:#e8eff5}
+
+/* ★ 操作按钮固定在顶部 ★ */
+.action-bar{display:flex;gap:8px;padding:8px 12px;background:#d4e4ef;flex-shrink:0}
+.action-bar button{flex:1;padding:11px;border:none;border-radius:10px;font-size:14px;font-weight:600;color:#fff;cursor:pointer}
+.btn-in{background:#1a6b8a}
+.btn-out{background:#e8941a}
+
+/* 消息区 */
+.msgs{flex:1;overflow-y:auto;padding:12px}
+.msg{margin-bottom:14px;display:flex;flex-direction:column}
+.msg.in{align-items:flex-start}
+.msg.out{align-items:flex-end}
+.bubble{max-width:85%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.5}
+.msg.in .bubble{background:#fff;border-top-left-radius:4px}
+.msg.out .bubble{background:#1a6b8a;color:#fff;border-top-right-radius:4px}
+.translation{background:#fff8e1;border:2px solid #f9a825;border-radius:10px;padding:10px;margin-top:6px;font-size:13px;color:#333;line-height:1.6;max-width:90%}
+.msg-time{font-size:11px;color:#aaa;margin-top:3px;padding:0 2px}
+.thinking{display:flex;gap:5px;padding:8px}
+.dot{width:7px;height:7px;background:#aaa;border-radius:50%;animation:b 1.2s ease-in-out infinite}
+.dot:nth-child(2){animation-delay:.2s}
+.dot:nth-child(3){animation-delay:.4s}
+@keyframes b{0%,80%,100%{transform:scale(.8);opacity:.5}40%{transform:scale(1.2);opacity:1}}
+
+/* 模态框 */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;align-items:flex-end}
+.overlay.show{display:flex}
+.sheet{background:#fff;border-radius:20px 20px 0 0;padding:20px;width:100%;max-height:90dvh;overflow-y:auto}
+.sheet-title{font-size:17px;font-weight:700;text-align:center;margin-bottom:16px}
+.form-group{margin-bottom:12px}
+.form-label{font-size:13px;color:#666;font-weight:500;margin-bottom:4px;display:block}
+.form-input,.form-select,.form-textarea{width:100%;padding:11px 14px;border:1.5px solid #e0e0e0;border-radius:10px;font-size:14px;outline:none;font-family:inherit;background:#fff}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:#1a6b8a}
+.form-textarea{resize:none;min-height:76px}
+.btn-row{display:flex;gap:10px;margin-top:14px}
+.btn{flex:1;padding:13px;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer}
+.btn-primary{background:#1a6b8a;color:#fff}
+.btn-cancel{background:#f0f0f0;color:#666}
+
+/* 输入浮层 */
+.input-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;flex-direction:column;justify-content:flex-end}
+.input-overlay.show{display:flex}
+.input-box{background:#fff;border-radius:20px 20px 0 0;padding:16px}
+.input-box-title{font-size:15px;font-weight:700;color:#1a6b8a;margin-bottom:12px}
+.input-box textarea{width:100%;padding:12px;border:1.5px solid #e0e0e0;border-radius:10px;font-size:15px;resize:none;min-height:100px;outline:none;font-family:inherit}
+.input-box textarea:focus{border-color:#1a6b8a}
+
+/* 设置 */
+.settings-body{flex:1;overflow-y:auto;padding:16px}
+.settings-card{background:#fff;border-radius:12px;padding:14px;margin-bottom:14px}
+.settings-section-title{font-size:12px;color:#888;font-weight:600;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px}
+.provider-tabs{display:flex;gap:8px;margin-bottom:12px}
+.ptab{flex:1;padding:8px;border:1.5px solid #e0e0e0;border-radius:8px;text-align:center;font-size:13px;cursor:pointer;font-weight:500;background:#fff}
+.ptab.active{border-color:#1a6b8a;background:#e8f4f8;color:#1a6b8a}
+
+/* loading */
+.spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<!-- ① 首页 -->
+<div class="page active" id="homePage">
+  <div class="topbar">
+    <h1>💬 聊天翻译器</h1>
+    <div style="display:flex;gap:8px">
+      <button class="icon-btn" onclick="openSettings()">⚙️</button>
+      <button class="icon-btn" onclick="openNewScene()">＋</button>
+    </div>
+  </div>
+  <div class="list-area" id="sceneList">
+    <div class="empty" id="emptyHint">
+      <div style="font-size:48px;margin-bottom:12px">💬</div>
+      <div>还没有聊天场景</div>
+      <div style="margin-top:6px;font-size:12px">点右上角 ＋ 新建</div>
+    </div>
+  </div>
+</div>
+
+<!-- ② 聊天页 -->
+<div class="page" id="chatPage">
+  <!-- 顶栏 -->
+  <div class="topbar">
+    <button class="icon-btn" onclick="goHome()">←</button>
+    <div style="flex:1;text-align:center">
+      <div id="chatTitle" style="font-size:16px;font-weight:600"></div>
+      <div id="chatMeta" style="font-size:11px;opacity:.8;margin-top:1px"></div>
+    </div>
+    <button class="icon-btn" onclick="clearMessages()">🗑</button>
+  </div>
+  <!-- ★ 操作按钮紧跟顶栏 ★ -->
+  <div class="action-bar">
+    <button class="btn-in" onclick="showIncoming()">📥 对方说了</button>
+    <button class="btn-out" onclick="showOutgoing()">📤 我要回复</button>
+  </div>
+  <!-- 消息区 -->
+  <div class="msgs" id="msgs"></div>
+</div>
+
+<!-- ③ 设置页 -->
+<div class="page" id="settingsPage">
+  <div class="topbar">
+    <button class="icon-btn" onclick="goHome()">←</button>
+    <h1>⚙️ API 设置</h1>
+    <button class="icon-btn" onclick="saveSettings()">✓</button>
+  </div>
+  <div class="settings-body">
+    <div class="settings-card">
+      <div class="settings-section-title">选择 AI 提供商</div>
+      <div class="provider-tabs">
+        <div class="ptab active" id="tab-claude" onclick="selProvider('claude')">🤖 Claude</div>
+        <div class="ptab" id="tab-openai" onclick="selProvider('openai')">✨ OpenAI</div>
+        <div class="ptab" id="tab-gemini" onclick="selProvider('gemini')">💎 Gemini</div>
+      </div>
+    </div>
+    <div class="settings-card" id="s-claude">
+      <div class="settings-section-title">Claude</div>
+      <div class="form-group"><label class="form-label">API Key</label><input class="form-input" id="k-claude" type="password" placeholder="sk-ant-..."></div>
+      <div class="form-group"><label class="form-label">模型</label>
+        <select class="form-select" id="m-claude">
+          <option value="claude-opus-4-5">claude-opus-4-5（最强）</option>
+          <option value="claude-sonnet-4-5" selected>claude-sonnet-4-5（推荐）</option>
+          <option value="claude-haiku-3-5">claude-haiku-3-5（最快）</option>
+        </select>
+      </div>
+    </div>
+    <div class="settings-card" id="s-openai" style="display:none">
+      <div class="settings-section-title">OpenAI</div>
+      <div class="form-group"><label class="form-label">API Key</label><input class="form-input" id="k-openai" type="password" placeholder="sk-..."></div>
+      <div class="form-group"><label class="form-label">模型</label>
+        <select class="form-select" id="m-openai">
+          <option value="gpt-4o" selected>gpt-4o</option>
+          <option value="gpt-4o-mini">gpt-4o-mini</option>
+        </select>
+      </div>
+    </div>
+    <div class="settings-card" id="s-gemini" style="display:none">
+      <div class="settings-section-title">Gemini</div>
+      <div class="form-group"><label class="form-label">API Key</label><input class="form-input" id="k-gemini" type="password" placeholder="AIza..."></div>
+      <div class="form-group"><label class="form-label">模型</label>
+        <select class="form-select" id="m-gemini">
+          <option value="gemini-2.0-flash" selected>gemini-2.0-flash</option>
+          <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 新建场景 -->
+<div class="overlay" id="newSceneModal">
+  <div class="sheet">
+    <div class="sheet-title">新建聊天场景</div>
+    <div class="form-group"><label class="form-label">对方名字</label><input class="form-input" id="ns-name" placeholder="田中さん、房东、同事…"></div>
+    <div class="form-group"><label class="form-label">对方语言</label>
+      <select class="form-select" id="ns-lang">
+        <option value="日语">🇯🇵 日语</option>
+        <option value="英语">🇺🇸 英语</option>
+        <option value="韩语">🇰🇷 韩语</option>
+        <option value="法语">🇫🇷 法语</option>
+      </select>
+    </div>
+    <div class="form-group"><label class="form-label">我的回复语气</label>
+      <select class="form-select" id="ns-tone">
+        <option value="formal">🫡 正式敬语</option>
+        <option value="normal" selected>🤝 普通正常</option>
+        <option value="friend">😊 朋友轻松</option>
+        <option value="funny">🎭 搞笑逗趣</option>
+        <option value="flirty">😏 老不正经</option>
+        <option value="arrogant">👑 俯视不屑</option>
+      </select>
+    </div>
+    <div class="form-group"><label class="form-label">背景说明（可选）</label><textarea class="form-textarea" id="ns-ctx" placeholder="例：这是我的房东，我是租客"></textarea></div>
+    <div class="btn-row">
+      <button class="btn btn-cancel" onclick="closeOverlay('newSceneModal')">取消</button>
+      <button class="btn btn-primary" onclick="createScene()">创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- 对方说输入 -->
+<div class="input-overlay" id="inOverlay">
+  <div class="input-box">
+    <div class="input-box-title">📥 对方说了什么？</div>
+    <textarea id="inText" placeholder="把对方说的内容粘贴到这里…"></textarea>
+    <div class="btn-row">
+      <button class="btn btn-cancel" onclick="closeOverlay('inOverlay')">取消</button>
+      <button class="btn btn-primary" id="inBtn" onclick="submitIn()">翻译解读</button>
+    </div>
+  </div>
+</div>
+
+<!-- 我要说输入 -->
+<div class="input-overlay" id="outOverlay">
+  <div class="input-box">
+    <div class="input-box-title">📤 我想说什么？</div>
+    <textarea id="outText" placeholder="用中文写下你想表达的意思…"></textarea>
+    <div class="btn-row">
+      <button class="btn btn-cancel" onclick="closeOverlay('outOverlay')">取消</button>
+      <button class="btn btn-primary" id="outBtn" onclick="submitOut()">生成回复</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const TONES={formal:'🫡正式敬语',normal:'🤝普通正常',friend:'😊朋友轻松',funny:'🎭搞笑逗趣',flirty:'😏老不正经',arrogant:'👑俯视不屑'};
+let curScene=null,curProvider='claude';
+
+function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(id).classList.add('active');}
+function goHome(){showPage('homePage');loadScenes();}
+function toast(msg,d=2000){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),d);}
+function closeOverlay(id){document.getElementById(id).classList.remove('show');}
+
+// 场景列表
+async function loadScenes(){
+  const r=await fetch('/api/scenes');const scenes=await r.json();
+  const list=document.getElementById('sceneList');
+  const empty=document.getElementById('emptyHint');
+  if(!scenes.length){list.innerHTML='';list.appendChild(empty);return;}
+  empty.style.display='none';list.innerHTML='';
+  scenes.forEach(s=>{
+    const el=document.createElement('div');el.className='scene-card';
+    el.innerHTML=`<div class="scene-avatar">${s.name[0]}</div><div class="scene-info"><div class="scene-name">${s.name}</div><div class="scene-meta">${s.other_lang} · ${TONES[s.tone]||s.tone}</div></div><button class="scene-del" onclick="delScene(event,'${s.id}')">×</button>`;
+    el.addEventListener('click',()=>enterScene(s));
+    list.appendChild(el);
+  });
+}
+
+async function delScene(e,id){e.stopPropagation();if(!confirm('删除？'))return;await fetch('/api/scenes/'+id,{method:'DELETE'});loadScenes();}
+
+function openNewScene(){
+  document.getElementById('ns-name').value='';
+  document.getElementById('ns-ctx').value='';
+  document.getElementById('newSceneModal').classList.add('show');
+  setTimeout(()=>document.getElementById('ns-name').focus(),300);
+}
+
+async function createScene(){
+  const name=document.getElementById('ns-name').value.trim();
+  if(!name){toast('请填写名字');return;}
+  const body={name,other_lang:document.getElementById('ns-lang').value,tone:document.getElementById('ns-tone').value,context:document.getElementById('ns-ctx').value.trim()};
+  const r=await fetch('/api/scenes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const scene=await r.json();closeOverlay('newSceneModal');
+  enterScene(scene);
+}
+
+// 聊天
+function enterScene(scene){
+  curScene=scene;
+  document.getElementById('chatTitle').textContent=scene.name;
+  document.getElementById('chatMeta').textContent=scene.other_lang+' · '+(TONES[scene.tone]||scene.tone);
+  document.getElementById('msgs').innerHTML='';
+  showPage('chatPage');
+  loadMsgs();
+}
+
+async function loadMsgs(){
+  const r=await fetch('/api/scenes/'+curScene.id+'/messages');
+  const msgs=await r.json();
+  msgs.forEach(renderMsg);
+  scrollBottom();
+}
+
+function scrollBottom(){const m=document.getElementById('msgs');m.scrollTop=m.scrollHeight;}
+
+function renderMsg(msg){
+  const c=document.getElementById('msgs');
+  const d=document.createElement('div');
+  d.className='msg '+(msg.type==='incoming'?'in':'out');
+  const time=new Date(msg.timestamp).toLocaleTimeString('zh',{hour:'2-digit',minute:'2-digit'});
+  d.innerHTML=`<div class="bubble">${msg.original}</div><div class="translation">${msg.translation.replace(/\n/g,'<br>')}</div><div class="msg-time">${time}</div>`;
+  c.appendChild(d);scrollBottom();
+}
+
+function showIncoming(){document.getElementById('inText').value='';document.getElementById('inOverlay').classList.add('show');setTimeout(()=>document.getElementById('inText').focus(),300);}
+function showOutgoing(){document.getElementById('outText').value='';document.getElementById('outOverlay').classList.add('show');setTimeout(()=>document.getElementById('outText').focus(),300);}
+
+async function submitIn(){
+  const text=document.getElementById('inText').value.trim();
+  if(!text){toast('请输入内容');return;}
+  const btn=document.getElementById('inBtn');btn.innerHTML='<span class="spin"></span>';btn.disabled=true;
+  closeOverlay('inOverlay');
+  // 等待气泡
+  const c=document.getElementById('msgs');
+  const t=document.createElement('div');t.className='msg in';
+  t.innerHTML='<div class="bubble"><div class="thinking"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>';
+  c.appendChild(t);scrollBottom();
+  try{
+    const r=await fetch('/api/translate/incoming',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scene_id:curScene.id,text})});
+    const data=await r.json();c.removeChild(t);
+    if(data.ok){renderMsg({type:'incoming',original:text,translation:data.result,timestamp:new Date().toISOString()});}
+    else toast('失败: '+data.error,3000);
+  }catch(e){c.removeChild(t);toast('网络错误',3000);}
+  btn.innerHTML='翻译解读';btn.disabled=false;
+}
+
+async function submitOut(){
+  const text=document.getElementById('outText').value.trim();
+  if(!text){toast('请输入内容');return;}
+  const btn=document.getElementById('outBtn');btn.innerHTML='<span class="spin"></span>';btn.disabled=true;
+  closeOverlay('outOverlay');
+  const c=document.getElementById('msgs');
+  const t=document.createElement('div');t.className='msg out';
+  t.innerHTML='<div class="bubble"><div class="thinking"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>';
+  c.appendChild(t);scrollBottom();
+  try{
+    const r=await fetch('/api/translate/outgoing',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scene_id:curScene.id,text})});
+    const data=await r.json();c.removeChild(t);
+    if(data.ok){
+      const d=document.createElement('div');d.className='msg out';
+      const time=new Date().toLocaleTimeString('zh',{hour:'2-digit',minute:'2-digit'});
+      // 解析三个回复建议（===分隔）
+      // 兼容 === 分隔 和 【回复建议】格式
+      let suggs=[];
+      if(data.result.includes('===')) {
+        suggs=data.result.split('===').map(s=>s.trim()).filter(s=>s);
+      } else {
+        // 提取【回复建议X】后的日语文本（括号内第一行）
+        const parts=data.result.split(/【回复建议\d】[^\n]*/);
+        parts.slice(1).forEach(p=>{
+          const lines=p.split('\n').map(l=>l.trim()).filter(l=>l&&!l.startsWith('（中文'));
+          // 找第一行日语（通常在括号里）
+          const jpLine=lines.find(l=>l.startsWith('（')&&!l.includes('中文说明'))||lines[0];
+          if(jpLine) suggs.push(jpLine.replace(/^（|）$/g,'').trim());
+        });
+      }
+      if(!suggs.length) suggs=[data.result]; // 兜底
+      const wrap=document.createElement('div');
+      const bbl=document.createElement('div');bbl.className='bubble';bbl.textContent=text;
+      wrap.appendChild(bbl);
+      const btnWrap=document.createElement('div');btnWrap.style.cssText='margin-top:6px;max-width:90%';
+      suggs.forEach(s=>{
+        const btn=document.createElement('button');
+        btn.textContent=s;
+        btn.style.cssText='display:block;width:100%;margin:6px 0;padding:12px 14px;background:#2c7a3a;color:#fff;border:none;border-radius:12px;font-size:14px;text-align:left;cursor:pointer;line-height:1.5;font-weight:500';
+        btn.addEventListener('click',()=>{
+          // 直接复制，不弹任何框
+          try {
+            navigator.clipboard.writeText(s);
+          } catch(e) {
+            // 兼容不支持clipboard API的情况
+            const ta=document.createElement('textarea');
+            ta.value=s;ta.style.position='fixed';ta.style.opacity='0';
+            document.body.appendChild(ta);ta.select();document.execCommand('copy');
+            document.body.removeChild(ta);
+          }
+          const orig=btn.textContent;
+          const origBg=btn.style.background;
+          btn.style.background='#27ae60';
+          btn.textContent='✓ 已复制！';
+          setTimeout(()=>{btn.style.background=origBg;btn.textContent=orig;},1200);
+        });
+        btnWrap.appendChild(btn);
+      });
+      wrap.appendChild(btnWrap);
+      const tl=document.createElement('div');tl.className='msg-time';tl.textContent=time+' 点按钮复制';
+      wrap.appendChild(tl);
+      wrap.className='msg out';
+      c.appendChild(wrap);scrollBottom();
+    }else toast('失败: '+data.error,3000);
+  }catch(e){c.removeChild(t);toast('网络错误',3000);}
+  btn.innerHTML='生成回复';btn.disabled=false;
+}
+
+function clearMessages(){if(!confirm('清空记录？'))return;document.getElementById('msgs').innerHTML='';toast('已清空');}
+
+// 设置
+async function openSettings(){
+  const r=await fetch('/api/settings');const s=await r.json();
+  curProvider=s.provider;selProvider(s.provider);
+  if(s.claude_key_masked)document.getElementById('k-claude').placeholder=s.claude_key_masked;
+  if(s.openai_key_masked)document.getElementById('k-openai').placeholder=s.openai_key_masked;
+  if(s.gemini_key_masked)document.getElementById('k-gemini').placeholder=s.gemini_key_masked;
+  document.getElementById('m-claude').value=s.claude_model||'claude-sonnet-4-5';
+  document.getElementById('m-openai').value=s.openai_model||'gpt-4o';
+  document.getElementById('m-gemini').value=s.gemini_model||'gemini-2.0-flash';
+  showPage('settingsPage');
+}
+
+function selProvider(p){
+  curProvider=p;
+  ['claude','openai','gemini'].forEach(x=>{
+    document.getElementById('tab-'+x).classList.toggle('active',x===p);
+    document.getElementById('s-'+x).style.display=x===p?'block':'none';
+  });
+}
+
+async function saveSettings(){
+  const body={provider:curProvider,
+    claude_key:document.getElementById('k-claude').value,
+    openai_key:document.getElementById('k-openai').value,
+    gemini_key:document.getElementById('k-gemini').value,
+    claude_model:document.getElementById('m-claude').value,
+    openai_model:document.getElementById('m-openai').value,
+    gemini_model:document.getElementById('m-gemini').value};
+  await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  toast('设置已保存');goHome();
+}
+
+document.querySelectorAll('.overlay,.input-overlay').forEach(el=>{
+  el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('show');});
+});
+
+loadScenes();
+</script>
+</body>
+</html>
