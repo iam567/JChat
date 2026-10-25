@@ -130,13 +130,16 @@ struct OpenAIClient {
         }
     }
 
-    func translate(text: String, incoming: Bool, own: String, target: String, tone: String, context: String, images: [String] = []) async throws -> Translation {
+    func translate(text: String, incoming: Bool, own: String, target: String, tone: String, context: String, images: [String] = [], suggestion: Bool = false) async throws -> Translation {
         guard !key.isEmpty else { throw ChatError(message: "请点右上角设置，填写你自己的 OpenAI API Key") }
         let ownName = AppLanguage.name(own), targetName = AppLanguage.name(target)
         let style = Tone.all.first { $0.id == tone }?.prompt ?? Tone.all[0].prompt
+        let task = suggestion
+            ? "用户希望你根据对方最近发言主动建议如何回复，而不是翻译固定原文。结合上下文给出三种有用、自然、可直接发送的回复候选；如用户有补充思路则优先遵循。不要假设用户同意、拒绝、承诺时间、付款或其他事实；立场不明确时给出不同回应方向或澄清问句，并在 note 中解释适用情况。translation 留空，summary 简短说明可怎样回应。"
+            : (incoming ? "对方聊天截图的 OCR 文字，请逐段翻译成用户语言，按顺序保留消息并说明对方意思。每一段标明【对方】或【我】，只翻译可见文字。summary 用用户语言依次解释【对话主题】【对方的意思】【接下来可以怎么说】，后者给出一两种回应思路，不擅自替用户作承诺。不要生成外语回复候选，replies 为空数组。" : "用户想说的话。请根据对话背景把用户的意思翻成对方语言，给出三种可直接复制的回复候选。translation 写用户原意的简短复述。")
         let instructions = """
         你是私人聊天翻译助手。用户的语言是\(ownName)，对方的语言是\(targetName)。
-        这是\(incoming ? "对方聊天截图的 OCR 文字，请逐段翻译成用户语言，按顺序保留消息并说明对方意思。每一段标明【对方】或【我】，只翻译可见文字。summary 用用户语言依次解释【对话主题】【对方的意思】【接下来可以怎么说】，后者给出一两种回应思路，不擅自替用户作承诺。不要生成外语回复候选，replies 为空数组。" : "用户想说的话。请根据对话背景把用户的意思翻成对方语言，给出三种可直接复制的回复候选。translation 写用户原意的简短复述。")
+        当前任务：\(task)
         summary 与所有 note 必须使用\(ownName)；回复候选 text 必须使用\(targetName)。正文用自然换行。
         回复语气：\(style)
         summary 简要解释重点、语气和要回应的事项；不确定的人物关系或识别内容要说明不确定，不编造。

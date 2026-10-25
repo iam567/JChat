@@ -47,8 +47,13 @@ struct SmokeTests {
         let client = OpenAIClient(key: "test-key", model: "gpt-6.1-sol", session: URLSession(configuration: configuration))
         let payload = Translation(translation: "明天可以", summary: "礼貌确认", replies: [Reply(text: "明日で大丈夫です。", note: "自然礼貌")])
         let resultText = String(data: try JSONEncoder().encode(payload), encoding: .utf8)!
+        var wantsSuggestion = false
         MockURLProtocol.handler = { request in
             let body = try readBody(request)
+            if wantsSuggestion {
+                try expect((body["instructions"] as? String)?.contains("主动建议如何回复") == true, "suggestion task generates replies rather than translating an invented user message")
+                try expect((body["instructions"] as? String)?.contains("不要假设用户同意") == true, "suggestions do not invent user commitments")
+            }
             try expect(body["store"] as? Bool == false, "provider storage disabled")
             try expect((body["instructions"] as? String)?.contains("日本語") == true, "target language used")
             try expect((body["instructions"] as? String)?.contains("中文") == true, "own language used")
@@ -59,6 +64,11 @@ struct SmokeTests {
         }
         let reply = try await client.translate(text: "明天可以", incoming: false, own: "zh", target: "ja", tone: "auto", context: "対方の文脈")
         try expect(reply.replies.first?.text == payload.replies.first?.text, "parse structured reply")
+        wantsSuggestion = true
+        _ = try await client.translate(text: "请建议怎样回复", incoming: false, own: "zh", target: "ja", tone: "auto", context: "対方の文脈", suggestion: true)
+        let proposed = Turn(kind: "outgoing", original: "AI建议", result: payload, generatedSuggestion: true)
+        let proposalHistory = ChatSession(myLanguage: "zh", targetLanguage: "ja", turns: [proposed])
+        try expect(proposalHistory.context.contains("不代表用户真实立场") && !proposalHistory.context.contains("用户想表达"), "suggestion history is not treated as user intent")
         MockURLProtocol.handler = { request in
             let body = try readBody(request)
             let input = body["input"] as! [[String: Any]]

@@ -43,6 +43,7 @@ struct Turn: Codable, Identifiable {
     var thumbnail: Data?
     var revises: UUID? = nil
     var thumbnails: [Data]? = nil
+    var generatedSuggestion: Bool? = nil
 }
 
 struct ChatSession: Codable, Identifiable {
@@ -59,6 +60,7 @@ struct ChatSession: Codable, Identifiable {
         let superseded = Set(turns.compactMap(\.revises))
         return String(turns.filter { !superseded.contains($0.id) }.suffix(6).map { turn in
             if turn.kind != "outgoing" { return "对方消息或截图识别资料：\(turn.original)\n翻译和解读：\(turn.result.translation)\n\(turn.result.summary)" }
+            if turn.generatedSuggestion == true { return "AI建议候选（用户尚未选择或发送，不代表用户真实立场）：\(turn.result.replies.map(\.text).joined(separator: " / "))" }
             return "用户想表达：\(turn.original)\n回复候选（不代表已经发送）：\(turn.result.replies.map(\.text).joined(separator: " / "))"
         }.joined(separator: "\n\n").suffix(24000))
     }

@@ -217,6 +217,15 @@ struct ContentView: View {
                 TextField("", text: $chat.draft, prompt: Text(chat.incoming ? l("粘贴对方说的话，翻译成", "相手の文章を貼り付け →", "Paste their message →") + AppLanguage.name(effectiveOwn) : l("输入想回复的话 → ", "返信したい内容 → ", "Type your reply → ") + AppLanguage.name(effectiveTarget)).foregroundStyle(.secondary), axis: .vertical)
                     .focused($composerFocused)
                     .lineLimit(1...5).foregroundStyle(.primary).padding(12).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
+                Button {
+                    dismissKeyboard()
+                    Task { await chat.suggest(own: effectiveOwn, target: effectiveTarget, tone: tone, model: model) }
+                } label: {
+                    VStack(spacing: 3) {
+                        Image(systemName: "sparkles").font(.system(size: 16, weight: .semibold))
+                        Text(l("AI建议", "AI提案", "Suggest")).font(.system(size: 10, weight: .semibold))
+                    }.frame(width: 48, height: 46).background(teal.opacity(0.14), in: RoundedRectangle(cornerRadius: 14))
+                }.accessibilityLabel(l("根据对话生成AI回复建议", "会話に基づく返信の提案", "Suggest replies based on this conversation"))
                 Button { dismissKeyboard(); Task { await chat.send(own: effectiveOwn, target: effectiveTarget, tone: tone, model: model) } } label: {
                     Image(systemName: "arrow.up").font(.title3.bold()).foregroundStyle(surface).frame(width: 46, height: 46).background(teal, in: RoundedRectangle(cornerRadius: 15))
                 }.disabled(chat.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).accessibilityLabel(l("发送", "送信", "Send"))
@@ -242,7 +251,7 @@ struct TurnCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Label(turn.kind == "outgoing" ? l("我要回复", "返信する", "My reply") : l("对方说", "相手の発言", "Their message"), systemImage: turn.kind == "outgoing" ? "arrow.up.right" : "arrow.down.left").font(.caption.weight(.semibold)).foregroundStyle(teal)
+                Label(turn.generatedSuggestion == true ? l("AI建议", "AI提案", "AI suggestions") : turn.kind == "outgoing" ? l("我要回复", "返信する", "My reply") : l("对方说", "相手の発言", "Their message"), systemImage: turn.generatedSuggestion == true ? "sparkles" : (turn.kind == "outgoing" ? "arrow.up.right" : "arrow.down.left")).font(.caption.weight(.semibold)).foregroundStyle(teal)
                 Spacer()
                 Text(turn.createdAt, style: .time).font(.caption2).foregroundStyle(.secondary)
             }
@@ -260,9 +269,10 @@ struct TurnCard: View {
                     }
                 }
                 DisclosureGroup(l("识别出的原文", "認識した原文", "Recognized text")) { Text(turn.original).font(.caption).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }.font(.caption).foregroundStyle(.secondary)
-            } else {
+            } else if turn.generatedSuggestion != true {
                 Text(turn.original).font(.subheadline).textSelection(.enabled)
             }
+            if turn.generatedSuggestion != true {
             HStack(spacing: 18) {
                 Button {
                     UIPasteboard.general.string = turn.original
@@ -275,6 +285,7 @@ struct TurnCard: View {
                     Label(l("编辑并重新翻译", "編集して再翻訳", "Edit and translate again"), systemImage: "square.and.pencil")
                 }.disabled(busy)
             }.font(.caption.weight(.semibold))
+            }
             if turn.revises != nil {
                 Text(l("修改后重新生成", "編集後の翻訳", "Regenerated after editing")).font(.caption2).foregroundStyle(.secondary)
             }

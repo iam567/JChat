@@ -94,6 +94,24 @@ final class ChatModel: ObservableObject {
         await translate(text: text, image: nil, incoming: isIncoming, own: own, target: target, tone: tone, model: model)
     }
 
+    func suggest(own: String, target: String, tone: String, model: String) async {
+        guard !busy else { return }
+        guard let current, current.turns.contains(where: { $0.kind != "outgoing" }) else {
+            error = "请先导入对方的截图，或在「对方说」中添加对方的消息"
+            return
+        }
+        busy = true; progress = "正在思考怎样回复对方…"
+        let idea = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            let result = try await OpenAIClient(key: KeyStore.read(), model: model).translate(
+                text: idea.isEmpty ? "请根据对方最近的消息建议如何回复。" : "我补充的回复思路：" + idea,
+                incoming: false, own: own, target: target, tone: tone,
+                context: current.context, suggestion: true)
+            append(Turn(kind: "outgoing", original: "AI建议", result: result, generatedSuggestion: true), own: own, target: target)
+        } catch { self.error = error.localizedDescription }
+        busy = false
+    }
+
     func latest(own: String, target: String, tone: String, model: String) async {
         guard !busy else { return }
         busy = true; progress = "正在读取最新截图…"
