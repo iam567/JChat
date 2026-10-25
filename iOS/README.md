@@ -1,6 +1,6 @@
 # JChat for iPhone
 
-SwiftUI 原生 iPhone 聊天翻译器，最低支持 iOS 17，无第三方依赖。与仓库现有 Flask 网页版独立运行。
+SwiftUI 原生 iPhone 聊天翻译器，最低支持 iOS 17，无第三方依赖。与仓库现有 Flask 网页版独立运行。界面自动跟随 iPhone 系统的浅色和深色模式。
 
 ## 日常使用
 

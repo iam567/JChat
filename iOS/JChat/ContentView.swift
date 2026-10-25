@@ -1,8 +1,14 @@
 import SwiftUI
 import PhotosUI
 
-private let teal = Color(red: 0.08, green: 0.43, blue: 0.47)
-private let canvas = Color(red: 0.95, green: 0.97, blue: 0.97)
+private let teal = Color(uiColor: UIColor { traits in
+    traits.userInterfaceStyle == .dark
+        ? UIColor(red: 0.40, green: 0.86, blue: 0.81, alpha: 1)
+        : UIColor(red: 0.06, green: 0.39, blue: 0.43, alpha: 1)
+})
+private let canvas = Color(uiColor: .systemGroupedBackground)
+private let card = Color(uiColor: .secondarySystemGroupedBackground)
+private let surface = Color(uiColor: .systemBackground)
 
 struct ContentView: View {
     @StateObject private var chat = ChatModel()
@@ -35,7 +41,7 @@ struct ContentView: View {
                                 }
                                 if chat.busy {
                                     HStack(spacing: 10) { ProgressView(); Text(chat.progress).font(.subheadline).foregroundStyle(.secondary) }
-                                        .padding().frame(maxWidth: .infinity, alignment: .leading).background(.white, in: RoundedRectangle(cornerRadius: 18))
+                                        .padding().frame(maxWidth: .infinity, alignment: .leading).background(card, in: RoundedRectangle(cornerRadius: 18))
                                 }
                                 if !chat.busy, chat.pendingText != nil || chat.pendingImage != nil {
                                     Button { Task { await retry() } } label: { Label(l("重试上次翻译", "もう一度翻訳", "Retry translation"), systemImage: "arrow.clockwise") }
@@ -141,7 +147,7 @@ struct ContentView: View {
             if chat.current != nil, chat.current?.myLanguage != own {
                 Text(l("这段历史使用原来的语言设置；新对话会使用你的新设置", "この会話は元の言語設定を使用します", "This conversation keeps its original language settings")).font(.caption).foregroundStyle(.secondary)
             }
-        }.padding(.horizontal, 18).padding(.vertical, 12).background(.white).disabled(chat.busy)
+        }.padding(.horizontal, 18).padding(.vertical, 12).background(surface).disabled(chat.busy)
     }
 
     private var welcome: some View {
@@ -151,7 +157,7 @@ struct ContentView: View {
             Text(l("截取 LINE 对话后，点一下「翻译最新截图」。也可以粘贴对方说的话，或直接输入你想回复的内容。", "LINEをスクリーンショットして「最新のスクショを翻訳」をタップ。相手の文章を貼り付けたり、返信したい内容を入力することもできます。", "Take a LINE screenshot and tap Translate latest screenshot. You can also paste their message or type your reply."))
                 .font(.subheadline).foregroundStyle(.secondary).lineSpacing(5)
             Label(l("新对话自动保存到翻译历史", "会話は履歴に自動保存", "Conversations are saved to history"), systemImage: "clock").font(.caption).foregroundStyle(teal)
-        }.padding(24).frame(maxWidth: .infinity, alignment: .leading).background(.white, in: RoundedRectangle(cornerRadius: 24)).padding(.top, 16)
+        }.padding(24).frame(maxWidth: .infinity, alignment: .leading).background(card, in: RoundedRectangle(cornerRadius: 24)).padding(.top, 16)
     }
 
     private var composer: some View {
@@ -159,9 +165,9 @@ struct ContentView: View {
             HStack(spacing: 10) {
                 Button { Task { await chat.latest(own: effectiveOwn, target: effectiveTarget, tone: tone, model: model) } } label: {
                     Label(l("翻译最新截图", "最新のスクショを翻訳", "Latest screenshot"), systemImage: "camera.viewfinder").font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 12)
-                }.background(teal.opacity(0.09), in: RoundedRectangle(cornerRadius: 14))
+                }.background(teal.opacity(0.14), in: RoundedRectangle(cornerRadius: 14))
                 PhotosPicker(selection: $selectedPhoto, matching: .images, photoLibrary: .shared()) {
-                    Image(systemName: "photo.on.rectangle").font(.title3).frame(width: 48, height: 44).background(teal.opacity(0.09), in: RoundedRectangle(cornerRadius: 14))
+                    Image(systemName: "photo.on.rectangle").font(.title3).frame(width: 48, height: 44).background(teal.opacity(0.14), in: RoundedRectangle(cornerRadius: 14))
                 }.accessibilityLabel(l("从相册选图", "写真から選ぶ", "Choose photo"))
             }
             Picker("方向", selection: $chat.incoming) {
@@ -169,13 +175,13 @@ struct ContentView: View {
                 Text(l("对方说", "相手の発言", "Their message")).tag(true)
             }.pickerStyle(.segmented)
             HStack(alignment: .bottom, spacing: 10) {
-                TextField(chat.incoming ? l("粘贴对方说的话，翻译成", "相手の文章を貼り付け →", "Paste their message →") + AppLanguage.name(effectiveOwn) : l("输入想回复的话 → ", "返信したい内容 → ", "Type your reply → ") + AppLanguage.name(effectiveTarget), text: $chat.draft, axis: .vertical)
-                    .lineLimit(1...5).padding(12).background(canvas, in: RoundedRectangle(cornerRadius: 14))
+                TextField("", text: $chat.draft, prompt: Text(chat.incoming ? l("粘贴对方说的话，翻译成", "相手の文章を貼り付け →", "Paste their message →") + AppLanguage.name(effectiveOwn) : l("输入想回复的话 → ", "返信したい内容 → ", "Type your reply → ") + AppLanguage.name(effectiveTarget)).foregroundStyle(.secondary), axis: .vertical)
+                    .lineLimit(1...5).foregroundStyle(.primary).padding(12).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
                 Button { Task { await chat.send(own: effectiveOwn, target: effectiveTarget, tone: tone, model: model) } } label: {
-                    Image(systemName: "arrow.up").font(.title3.bold()).foregroundStyle(.white).frame(width: 46, height: 46).background(teal, in: RoundedRectangle(cornerRadius: 15))
+                    Image(systemName: "arrow.up").font(.title3.bold()).foregroundStyle(surface).frame(width: 46, height: 46).background(teal, in: RoundedRectangle(cornerRadius: 15))
                 }.disabled(chat.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).accessibilityLabel(l("发送", "送信", "Send"))
             }
-        }.padding(14).background(.white).disabled(chat.busy)
+        }.padding(14).background(surface).disabled(chat.busy)
     }
 
     private func retry() async { await chat.retry(own: effectiveOwn, target: effectiveTarget, tone: tone, model: model) }
@@ -206,7 +212,7 @@ struct TurnCard: View {
                 Text(turn.result.summary).font(.subheadline).foregroundStyle(.secondary).lineSpacing(4)
             }
             ForEach(Array(turn.result.replies.enumerated()), id: \.offset) { _, reply in ReplyCard(reply: reply, own: own) }
-        }.padding(18).frame(maxWidth: .infinity, alignment: .leading).background(.white, in: RoundedRectangle(cornerRadius: 20))
+        }.padding(18).frame(maxWidth: .infinity, alignment: .leading).background(card, in: RoundedRectangle(cornerRadius: 20))
     }
 }
 
@@ -227,6 +233,6 @@ struct ReplyCard: View {
             } label: {
                 Label(copied ? (own == "ja" ? "コピーしました" : "已复制") : (own == "ja" ? "返信をコピー" : (own == "en" ? "Copy reply" : "复制这条回复")), systemImage: copied ? "checkmark" : "doc.on.doc").font(.subheadline.weight(.semibold))
             }.disabled(edited.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-        }.padding(15).background(teal.opacity(0.06), in: RoundedRectangle(cornerRadius: 14))
+        }.padding(15).background(teal.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
     }
 }
