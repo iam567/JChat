@@ -62,6 +62,18 @@ struct SmokeTests {
         try expect(restored.first?.id == history.id, "history survives restart")
         try expect(restored.first?.turns.first?.original == "こんにちは", "history preserves original text")
         try expect(history.context.contains("对方消息") && !history.context.contains("用户想表达"), "pasted incoming text remains incoming context")
+        var oldTurn = history.turns[0]
+        oldTurn.original = "旧的错字原文"
+        let corrected = Turn(kind: "incoming", original: "修正后的原文", result: payload, revises: oldTurn.id)
+        let revisedHistory = ChatSession(myLanguage: "zh", targetLanguage: "ja", turns: [oldTurn, corrected])
+        try expect(!revisedHistory.context.contains("旧的错字原文") && revisedHistory.context.contains("修正后的原文"), "corrected text replaces typo in future context")
+        try HistoryStore.save([revisedHistory], to: file)
+        let revisions = try HistoryStore.load(from: file)
+        try expect(revisions[0].turns.count == 2 && revisions[0].turns[1].revises == oldTurn.id, "both versions and revision link persist")
+        var legacy = try JSONSerialization.jsonObject(with: JSONEncoder().encode(oldTurn)) as! [String: Any]
+        legacy.removeValue(forKey: "revises")
+        let legacyTurn = try JSONDecoder().decode(Turn.self, from: JSONSerialization.data(withJSONObject: legacy))
+        try expect(legacyTurn.revises == nil && legacyTurn.original == oldTurn.original, "pre-edit history remains readable")
         try HistoryStore.save([], to: file)
         let deleted = try HistoryStore.load(from: file)
         try expect(deleted.isEmpty, "history deletion persists")

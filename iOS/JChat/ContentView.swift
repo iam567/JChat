@@ -20,6 +20,8 @@ struct ContentView: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var clearAll = false
     @State private var newChat = false
+    @State private var editCandidate: Turn?
+    @State private var confirmEdit = false
     @FocusState private var composerFocused: Bool
 
     var effectiveOwn: String { chat.current?.myLanguage ?? own }
@@ -37,7 +39,13 @@ struct ContentView: View {
                         ScrollView {
                             LazyVStack(alignment: .leading, spacing: 20) {
                                 ForEach(chat.current?.turns ?? []) { turn in
-                                    TurnCard(turn: turn, own: effectiveOwn)
+                                    TurnCard(turn: turn, own: effectiveOwn, busy: chat.busy) {
+                                        if !chat.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && chat.draft != turn.original {
+                                            editCandidate = turn; confirmEdit = true
+                                        } else {
+                                            chat.edit(turn); composerFocused = true
+                                        }
+                                    }
                                 }
                                 if chat.busy {
                                     HStack(spacing: 10) { ProgressView(); Text(chat.progress).font(.subheadline).foregroundStyle(.secondary) }
@@ -104,6 +112,12 @@ struct ContentView: View {
             }
             .tabItem { Label(l("翻译历史", "履歴", "History"), systemImage: "clock.arrow.circlepath") }.tag(1)
         }
+        .confirmationDialog(l("用这条原文替换输入框中的草稿？", "入力中の文章をこの原文に置き換えますか？", "Replace your draft with this original message?"), isPresented: $confirmEdit, titleVisibility: .visible) {
+            Button(l("编辑这条原文", "この原文を編集", "Edit this original")) {
+                if let turn = editCandidate { chat.edit(turn); composerFocused = true }
+                editCandidate = nil
+            }
+        }
         .tint(teal)
         .sheet(isPresented: $settings) { SettingsView(own: $own, target: $target, model: $model) }
         .onChange(of: selectedPhoto) { _, item in
@@ -155,6 +169,13 @@ struct ContentView: View {
 
     private var composer: some View {
         VStack(spacing: 12) {
+            if chat.editingTurnID != nil {
+                HStack {
+                    Label(l("正在编辑原文，发送后重新生成", "原文を編集中・送信で再翻訳", "Editing original · send to regenerate"), systemImage: "pencil").font(.caption)
+                    Spacer()
+                    Button(l("取消", "キャンセル", "Cancel")) { chat.cancelEdit(); dismissKeyboard() }.font(.caption)
+                }.foregroundStyle(teal)
+            }
             HStack(spacing: 10) {
                 Button { dismissKeyboard(); Task { await chat.latest(own: effectiveOwn, target: effectiveTarget, tone: tone, model: model) } } label: {
                     Label(l("翻译最新截图", "最新のスクショを翻訳", "Latest screenshot"), systemImage: "camera.viewfinder").font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 12)
@@ -189,6 +210,9 @@ struct ContentView: View {
 struct TurnCard: View {
     let turn: Turn
     let own: String
+    let busy: Bool
+    let onEdit: () -> Void
+    @State private var copiedOriginal = false
     func l(_ zh: String, _ ja: String, _ en: String) -> String { own == "ja" ? ja : (own == "en" ? en : zh) }
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -202,6 +226,21 @@ struct TurnCard: View {
                 DisclosureGroup(l("识别出的原文", "認識した原文", "Recognized text")) { Text(turn.original).font(.caption).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }.font(.caption).foregroundStyle(.secondary)
             } else {
                 Text(turn.original).font(.subheadline).textSelection(.enabled)
+            }
+            HStack(spacing: 18) {
+                Button {
+                    UIPasteboard.general.string = turn.original
+                    copiedOriginal = true
+                    Task { try? await Task.sleep(for: .seconds(1.5)); copiedOriginal = false }
+                } label: {
+                    Label(copiedOriginal ? l("已复制", "コピーしました", "Copied") : l("复制原文", "原文をコピー", "Copy original"), systemImage: copiedOriginal ? "checkmark" : "doc.on.doc")
+                }
+                Button(action: onEdit) {
+                    Label(l("编辑并重新翻译", "編集して再翻訳", "Edit and translate again"), systemImage: "square.and.pencil")
+                }.disabled(busy)
+            }.font(.caption.weight(.semibold))
+            if turn.revises != nil {
+                Text(l("修改后重新生成", "編集後の翻訳", "Regenerated after editing")).font(.caption2).foregroundStyle(.secondary)
             }
             if turn.kind != "outgoing" {
                 Divider()

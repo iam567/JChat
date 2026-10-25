@@ -10,6 +10,7 @@ final class ChatModel: ObservableObject {
     @Published var progress = ""
     @Published var error: String?
     @Published var draft = ""
+    @Published var editingTurnID: UUID?
     @Published var incoming = false
     @Published var tab = 0
     @Published var pendingImage: Data?
@@ -29,13 +30,36 @@ final class ChatModel: ObservableObject {
 
     func startNew() {
         guard !busy else { return }
-        current = nil; draft = ""; incoming = false; pendingImage = nil; pendingText = nil
+        editingTurnID = nil; current = nil; draft = ""; incoming = false; pendingImage = nil; pendingText = nil
         tab = 0
     }
 
     func open(_ item: ChatSession) {
         guard !busy else { return }
-        current = item; draft = ""; incoming = false; pendingImage = nil; pendingText = nil; tab = 0
+        editingTurnID = nil; current = item; draft = ""; incoming = false; pendingImage = nil; pendingText = nil; tab = 0
+    }
+
+    func edit(_ turn: Turn) {
+        guard !busy else { return }
+        editingTurnID = turn.id
+        draft = turn.original
+        incoming = turn.kind != "outgoing"
+        pendingText = nil; pendingImage = nil
+    }
+
+    func cancelEdit() {
+        guard !busy else { return }
+        editingTurnID = nil; draft = ""; incoming = false
+        pendingText = nil; pendingImage = nil
+    }
+
+    var translationContext: String {
+        guard var chat = current else { return "" }
+        if let id = editingTurnID, let index = chat.turns.firstIndex(where: { $0.id == id }) {
+            // Regeneration uses the conversation before the edited message.
+            chat.turns = Array(chat.turns.prefix(index))
+        }
+        return chat.context
     }
 
     func remove(_ ids: Set<UUID>) {
@@ -74,6 +98,7 @@ final class ChatModel: ObservableObject {
 
     func screenshot(_ data: Data, own: String, target: String, tone: String, model: String) async {
         guard !busy else { return }
+        editingTurnID = nil
         pendingImage = data; pendingText = nil; pendingIncoming = true
         busy = true; progress = "正在识别截图文字…"
         do {
@@ -97,7 +122,7 @@ final class ChatModel: ObservableObject {
         guard text.count <= 20000 else { error = "文字过长，请分段翻译"; return }
         busy = true; progress = incoming ? "正在翻译对方的意思…" : "正在结合对话生成回复…"
         do {
-            let result = try await OpenAIClient(key: KeyStore.read(), model: model).translate(text: text, incoming: incoming, own: own, target: target, tone: tone, context: current?.context ?? "")
+            let result = try await OpenAIClient(key: KeyStore.read(), model: model).translate(text: text, incoming: incoming, own: own, target: target, tone: tone, context: translationContext)
             var thumbnail: Data?
             if let image, let uiImage = UIImage(data: image) {
                 let size = uiImage.size
@@ -106,9 +131,10 @@ final class ChatModel: ObservableObject {
                 let renderer = UIGraphicsImageRenderer(size: renderSize)
                 thumbnail = renderer.image { _ in uiImage.draw(in: CGRect(origin: .zero, size: renderSize)) }.jpegData(compressionQuality: 0.7)
             }
-            append(Turn(kind: image != nil ? "screenshot" : (incoming ? "incoming" : "outgoing"), original: text, result: result, thumbnail: thumbnail), own: own, target: target)
+            append(Turn(kind: image != nil ? "screenshot" : (incoming ? "incoming" : "outgoing"), original: text, result: result, thumbnail: thumbnail, revises: editingTurnID), own: own, target: target)
             if image == nil, draft == text { draft = "" }
             if incoming { self.incoming = false }
+            editingTurnID = nil
             pendingText = nil; pendingImage = nil
         } catch { self.error = error.localizedDescription }
         busy = false

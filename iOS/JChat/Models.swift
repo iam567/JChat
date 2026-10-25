@@ -41,6 +41,7 @@ struct Turn: Codable, Identifiable {
     var original: String
     var result: Translation
     var thumbnail: Data?
+    var revises: UUID? = nil
 }
 
 struct ChatSession: Codable, Identifiable {
@@ -54,7 +55,8 @@ struct ChatSession: Codable, Identifiable {
         return String(text.replacingOccurrences(of: "\n", with: " ").prefix(42))
     }
     var context: String {
-        String(turns.suffix(6).map { turn in
+        let superseded = Set(turns.compactMap(\.revises))
+        return String(turns.filter { !superseded.contains($0.id) }.suffix(6).map { turn in
             if turn.kind != "outgoing" { return "对方消息或截图识别资料：\(turn.original)\n翻译和解读：\(turn.result.translation)\n\(turn.result.summary)" }
             return "用户想表达：\(turn.original)\n回复候选（不代表已经发送）：\(turn.result.replies.map(\.text).joined(separator: " / "))"
         }.joined(separator: "\n\n").suffix(24000))
