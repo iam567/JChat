@@ -20,6 +20,7 @@ struct ContentView: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var clearAll = false
     @State private var newChat = false
+    @FocusState private var composerFocused: Bool
 
     var effectiveOwn: String { chat.current?.myLanguage ?? own }
     var effectiveTarget: String { chat.current?.targetLanguage ?? target }
@@ -35,7 +36,6 @@ struct ContentView: View {
                     ScrollViewReader { proxy in
                         ScrollView {
                             LazyVStack(alignment: .leading, spacing: 20) {
-                                if chat.current == nil { welcome }
                                 ForEach(chat.current?.turns ?? []) { turn in
                                     TurnCard(turn: turn, own: effectiveOwn)
                                 }
@@ -50,7 +50,10 @@ struct ContentView: View {
                             }.padding(18)
                         }
                         .onChange(of: chat.current?.turns.count) { _, _ in withAnimation { proxy.scrollTo("bottom", anchor: .bottom) } }
-                        .onChange(of: chat.busy) { _, _ in withAnimation { proxy.scrollTo("bottom", anchor: .bottom) } }
+                        .onChange(of: chat.busy) { _, busy in
+                            if busy { dismissKeyboard() }
+                            withAnimation { proxy.scrollTo("bottom", anchor: .bottom) }
+                        }
                         .scrollDismissesKeyboard(.interactively)
                     }
                     composer
@@ -150,20 +153,10 @@ struct ContentView: View {
         }.padding(.horizontal, 18).padding(.vertical, 12).background(surface).disabled(chat.busy)
     }
 
-    private var welcome: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Image(systemName: "bubble.left.and.text.bubble.right.fill").font(.system(size: 40)).foregroundStyle(teal)
-            Text(l("看懂对方，自然回复", "相手を理解して、自然に返信", "Understand them. Reply naturally.")).font(.title2.bold())
-            Text(l("截取 LINE 对话后，点一下「翻译最新截图」。也可以粘贴对方说的话，或直接输入你想回复的内容。", "LINEをスクリーンショットして「最新のスクショを翻訳」をタップ。相手の文章を貼り付けたり、返信したい内容を入力することもできます。", "Take a LINE screenshot and tap Translate latest screenshot. You can also paste their message or type your reply."))
-                .font(.subheadline).foregroundStyle(.secondary).lineSpacing(5)
-            Label(l("新对话自动保存到翻译历史", "会話は履歴に自動保存", "Conversations are saved to history"), systemImage: "clock").font(.caption).foregroundStyle(teal)
-        }.padding(24).frame(maxWidth: .infinity, alignment: .leading).background(card, in: RoundedRectangle(cornerRadius: 24)).padding(.top, 16)
-    }
-
     private var composer: some View {
         VStack(spacing: 12) {
             HStack(spacing: 10) {
-                Button { Task { await chat.latest(own: effectiveOwn, target: effectiveTarget, tone: tone, model: model) } } label: {
+                Button { dismissKeyboard(); Task { await chat.latest(own: effectiveOwn, target: effectiveTarget, tone: tone, model: model) } } label: {
                     Label(l("翻译最新截图", "最新のスクショを翻訳", "Latest screenshot"), systemImage: "camera.viewfinder").font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 12)
                 }.background(teal.opacity(0.14), in: RoundedRectangle(cornerRadius: 14))
                 PhotosPicker(selection: $selectedPhoto, matching: .images, photoLibrary: .shared()) {
@@ -176,12 +169,18 @@ struct ContentView: View {
             }.pickerStyle(.segmented)
             HStack(alignment: .bottom, spacing: 10) {
                 TextField("", text: $chat.draft, prompt: Text(chat.incoming ? l("粘贴对方说的话，翻译成", "相手の文章を貼り付け →", "Paste their message →") + AppLanguage.name(effectiveOwn) : l("输入想回复的话 → ", "返信したい内容 → ", "Type your reply → ") + AppLanguage.name(effectiveTarget)).foregroundStyle(.secondary), axis: .vertical)
+                    .focused($composerFocused)
                     .lineLimit(1...5).foregroundStyle(.primary).padding(12).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
-                Button { Task { await chat.send(own: effectiveOwn, target: effectiveTarget, tone: tone, model: model) } } label: {
+                Button { dismissKeyboard(); Task { await chat.send(own: effectiveOwn, target: effectiveTarget, tone: tone, model: model) } } label: {
                     Image(systemName: "arrow.up").font(.title3.bold()).foregroundStyle(surface).frame(width: 46, height: 46).background(teal, in: RoundedRectangle(cornerRadius: 15))
                 }.disabled(chat.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).accessibilityLabel(l("发送", "送信", "Send"))
             }
         }.padding(14).background(surface).disabled(chat.busy)
+    }
+
+    private func dismissKeyboard() {
+        composerFocused = false
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
     private func retry() async { await chat.retry(own: effectiveOwn, target: effectiveTarget, tone: tone, model: model) }
