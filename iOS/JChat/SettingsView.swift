@@ -61,7 +61,7 @@ struct SettingsView: View {
                         if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                     }
                 } footer: {
-                    Text(l("「翻译最新截图」需要照片完整访问权限；不想授权全部照片，也可以用相册按钮手动选图。截图文字在手机上识别，再发送文字进行翻译。", "最新のスクショを取得するには写真へのフルアクセスが必要です。写真ピッカーで個別選択もできます。文字認識は端末内で行います。", "Latest screenshot requires full Photos access. You can also choose images individually. Text recognition runs on your phone."))
+                    Text(l("「翻译最新截图」需要照片完整访问权限；不想授权全部照片，也可以用相册按钮手动选图。截图会连同识别文字一起发给你设置的 OpenAI，用来判断左右气泡和分析上下文。语音在本机识别，只发送文字翻译。", "最新のスクショを取得するには写真へのフルアクセスが必要です。写真ピッカーで個別選択もできます。スクショと認識した文字をOpenAIに送信し、会話の話者と文脈を分析します。音声は端末内で認識し、文字のみ翻訳します。", "Latest screenshot requires full Photos access. You can also choose images individually. Screenshots and recognized text are sent to OpenAI to analyze speakers and context. Speech is recognized on-device; only its text is sent for translation."))
                 }
                 Section {
                     Text("JChat · 1.0").foregroundStyle(.secondary)

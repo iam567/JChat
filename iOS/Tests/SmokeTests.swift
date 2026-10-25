@@ -20,23 +20,35 @@ func expect(_ value: @autoclosure () -> Bool, _ message: String) throws {
     if !value() { throw ChatError(message: "TEST FAILED: " + message) }
 }
 
+func readBody(_ request: URLRequest) throws -> [String: Any] {
+    if let data = request.httpBody { return try JSONSerialization.jsonObject(with: data) as! [String: Any] }
+    guard let stream = request.httpBodyStream else { throw ChatError(message: "Missing test request body") }
+    stream.open(); defer { stream.close() }
+    var bytes = [UInt8](repeating: 0, count: 4096), data = Data()
+    while stream.hasBytesAvailable { let n = stream.read(&bytes, maxLength: bytes.count); if n <= 0 { break }; data.append(bytes, count: n) }
+    return try JSONSerialization.jsonObject(with: data) as! [String: Any]
+}
+
 @main
 struct SmokeTests {
     static func main() async throws {
+        var speech = SpeechSegments()
+        try expect(speech.append("明日は三時です。次の").count == 1, "speech splits at sentence punctuation")
+        try expect(speech.append("会議に参加します。") == ["次の会議に参加します。"], "speech preserves text across recognition chunks")
+        try expect(speech.flush() == nil, "flushing does not duplicate committed sentences")
+        try expect(speech.append("価格は3.14円です").isEmpty, "decimal point is not a sentence boundary")
+        try expect(speech.flush() == "価格は3.14円です", "pause or stop flushes trailing speech")
+        let now = Date()
+        try expect(VoiceSessionLimit.elapsed(since: now, now: now.addingTimeInterval(3599)) == 3599, "one hour session remains active before limit")
+        try expect(VoiceSessionLimit.reached(since: now, now: now.addingTimeInterval(3600)), "one hour auto-stop boundary")
+        try expect(VoiceSessionLimit.elapsed(since: now, now: now.addingTimeInterval(7200)) == 3600, "elapsed time is capped at 60 minutes")
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]
         let client = OpenAIClient(key: "test-key", model: "gpt-6.1-sol", session: URLSession(configuration: configuration))
         let payload = Translation(translation: "明天可以", summary: "礼貌确认", replies: [Reply(text: "明日で大丈夫です。", note: "自然礼貌")])
         let resultText = String(data: try JSONEncoder().encode(payload), encoding: .utf8)!
         MockURLProtocol.handler = { request in
-            let body: [String: Any]
-            if let data = request.httpBody { body = try JSONSerialization.jsonObject(with: data) as! [String: Any] }
-            else {
-                let stream = request.httpBodyStream!; stream.open(); defer { stream.close() }
-                var bytes = [UInt8](repeating: 0, count: 4096), data = Data()
-                while stream.hasBytesAvailable { let n = stream.read(&bytes, maxLength: bytes.count); if n <= 0 { break }; data.append(bytes, count: n) }
-                body = try JSONSerialization.jsonObject(with: data) as! [String: Any]
-            }
+            let body = try readBody(request)
             try expect(body["store"] as? Bool == false, "provider storage disabled")
             try expect((body["instructions"] as? String)?.contains("日本語") == true, "target language used")
             try expect((body["instructions"] as? String)?.contains("中文") == true, "own language used")
@@ -47,6 +59,26 @@ struct SmokeTests {
         }
         let reply = try await client.translate(text: "明天可以", incoming: false, own: "zh", target: "ja", tone: "auto", context: "対方の文脈")
         try expect(reply.replies.first?.text == payload.replies.first?.text, "parse structured reply")
+        MockURLProtocol.handler = { request in
+            let body = try readBody(request)
+            let input = body["input"] as! [[String: Any]]
+            let contents = input[0]["content"] as! [[String: Any]]
+            let urls = contents.filter { $0["type"] as? String == "input_image" }.compactMap { $0["image_url"] as? String }
+            try expect(urls == ["data:image/jpeg;base64,first", "data:image/jpeg;base64,second"], "multiple screenshots keep user-confirmed order")
+            try expect((body["instructions"] as? String)?.contains("右侧气泡是用户本人") == true, "screenshot roles distinguish self and other")
+            let response: [String: Any] = ["status": "completed", "output": [["content": [["type": "output_text", "text": resultText]]]]]
+            return (200, try JSONSerialization.data(withJSONObject: response))
+        }
+        _ = try await client.translate(text: "截图文字", incoming: true, own: "zh", target: "ja", tone: "auto", context: "", images: ["data:image/jpeg;base64,first", "data:image/jpeg;base64,second"])
+        MockURLProtocol.handler = { request in
+            let body = try readBody(request)
+            try expect(body["text"] == nil, "live translation uses direct text without reply schema")
+            try expect((body["instructions"] as? String)?.contains("翻译为中文") == true, "speech translates into own language")
+            let response: [String: Any] = ["status": "completed", "output": [["content": [["type": "output_text", "text": "明天见。"]]]]]
+            return (200, try JSONSerialization.data(withJSONObject: response))
+        }
+        let live = try await client.translateSpeech("また明日", own: "zh", source: "ja", context: "")
+        try expect(live == "明天见。", "plain voice translation parsing")
         MockURLProtocol.handler = { _ in (401, Data("{}".utf8)) }
         do { try await client.verify(); throw ChatError(message: "Expected 401 failure") }
         catch let error as ChatError { try expect(error.message.contains("Key"), "actionable invalid key error") }
@@ -88,6 +120,6 @@ struct SmokeTests {
         let data = NSBitmapImageRep(data: image.tiffRepresentation!)!.representation(using: .png, properties: [:])!
         let recognized = try await ScreenshotReader.recognize(data)
         try expect(recognized.contains("会議") && recognized.contains("資料"), "Japanese screenshot OCR")
-        print("PASS: structured response, language direction, automatic tone, context, API errors, history persistence/deletion, Japanese OCR")
+        print("PASS: structured response, language direction, automatic tone, context, API errors, history persistence/deletion, Japanese OCR, speech segmentation/hour limit, ordered screenshot input, live translation")
     }
 }

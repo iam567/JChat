@@ -42,6 +42,7 @@ struct Turn: Codable, Identifiable {
     var result: Translation
     var thumbnail: Data?
     var revises: UUID? = nil
+    var thumbnails: [Data]? = nil
 }
 
 struct ChatSession: Codable, Identifiable {

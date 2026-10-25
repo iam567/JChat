@@ -17,7 +17,10 @@ struct ContentView: View {
     @AppStorage("tone") private var tone = "auto"
     @AppStorage("openAIModel") private var model = "gpt-6.1-sol"
     @State private var settings = false
-    @State private var selectedPhoto: PhotosPickerItem?
+    @State private var selectedPhotos: [PhotosPickerItem] = []
+    @State private var screenshotBatch: [SelectedScreenshot] = []
+    @State private var showScreenshotBatch = false
+    @State private var loadingPhotos = false
     @State private var clearAll = false
     @State private var newChat = false
     @State private var editCandidate: Turn?
@@ -71,7 +74,7 @@ struct ContentView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button { if chat.current == nil { chat.startNew() } else { newChat = true } } label: { Image(systemName: "square.and.pencil") }
+                        Button { if chat.current == nil { chat.startNew() } else { newChat = true } } label: { HStack(spacing: 5) { Image(systemName: "plus"); Text(l("新对话", "新しい会話", "New chat")).font(.subheadline) } }
                             .accessibilityLabel(l("新对话", "新しい会話", "New conversation")).disabled(chat.busy)
                     }
                     ToolbarItem(placement: .topBarTrailing) {
@@ -81,6 +84,14 @@ struct ContentView: View {
                 }
             }
             .tabItem { Label(l("直接翻译", "翻訳", "Translate"), systemImage: "bubble.left.and.text.bubble.right") }.tag(0)
+
+            Group {
+                if #available(iOS 26.0, *) {
+                    VoiceTranslationView { chat.saveVoiceHistory($0) }
+                } else {
+                    ContentUnavailableView("语音翻译需要 iOS 26 或更新系统", systemImage: "mic", description: Text("直接翻译和历史仍可正常使用"))
+                }
+            }.tabItem { Label(l("语音翻译", "音声翻訳", "Voice"), systemImage: "mic.fill") }.tag(2)
 
             NavigationStack {
                 Group {
@@ -120,16 +131,30 @@ struct ContentView: View {
         }
         .tint(teal)
         .sheet(isPresented: $settings) { SettingsView(own: $own, target: $target, model: $model) }
-        .onChange(of: selectedPhoto) { _, item in
-            guard let item else { return }
+        .onChange(of: selectedPhotos) { _, items in
+            guard !items.isEmpty else { return }
+            loadingPhotos = true
             Task {
                 do {
-                    guard let data = try await item.loadTransferable(type: Data.self) else { throw ChatError(message: "无法读取这张图片") }
-                    await chat.screenshot(data, own: effectiveOwn, target: effectiveTarget, tone: tone, model: model)
+                    var selected: [SelectedScreenshot] = []
+                    for item in items {
+                        guard let data = try await item.loadTransferable(type: Data.self), UIImage(data: data) != nil else { throw ChatError(message: "有一张图片无法读取，请重新选择") }
+                        selected.append(SelectedScreenshot(data: data))
+                    }
+                    screenshotBatch = selected
+                    showScreenshotBatch = true
                 } catch { chat.error = error.localizedDescription }
-                selectedPhoto = nil
+                loadingPhotos = false; selectedPhotos = []
             }
         }
+        .sheet(isPresented: $showScreenshotBatch, onDismiss: { screenshotBatch = [] }) {
+            ScreenshotBatchView(images: screenshotBatch) { ordered in
+                showScreenshotBatch = false
+                dismissKeyboard()
+                Task { await chat.screenshots(ordered.map(\.data), own: effectiveOwn, target: effectiveTarget, tone: tone, model: model) }
+            }
+        }
+        .overlay { if loadingPhotos { ProgressView("正在读取图片…").padding(24).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18)) } }
         .alert(l("提示", "お知らせ", "Notice"), isPresented: Binding(get: { chat.error != nil }, set: { if !$0 { chat.error = nil } })) {
             Button(l("知道了", "OK", "OK"), role: .cancel) { chat.error = nil }
         } message: { Text(chat.error ?? "") }
@@ -180,7 +205,7 @@ struct ContentView: View {
                 Button { dismissKeyboard(); Task { await chat.latest(own: effectiveOwn, target: effectiveTarget, tone: tone, model: model) } } label: {
                     Label(l("翻译最新截图", "最新のスクショを翻訳", "Latest screenshot"), systemImage: "camera.viewfinder").font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 12)
                 }.background(teal.opacity(0.14), in: RoundedRectangle(cornerRadius: 14))
-                PhotosPicker(selection: $selectedPhoto, matching: .images, photoLibrary: .shared()) {
+                PhotosPicker(selection: $selectedPhotos, maxSelectionCount: 10, selectionBehavior: .ordered, matching: .images, photoLibrary: .shared()) {
                     Image(systemName: "photo.on.rectangle").font(.title3).frame(width: 48, height: 44).background(teal.opacity(0.14), in: RoundedRectangle(cornerRadius: 14))
                 }.accessibilityLabel(l("从相册选图", "写真から選ぶ", "Choose photo"))
             }
@@ -196,7 +221,7 @@ struct ContentView: View {
                     Image(systemName: "arrow.up").font(.title3.bold()).foregroundStyle(surface).frame(width: 46, height: 46).background(teal, in: RoundedRectangle(cornerRadius: 15))
                 }.disabled(chat.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).accessibilityLabel(l("发送", "送信", "Send"))
             }
-        }.padding(14).background(surface).disabled(chat.busy)
+        }.padding(14).background(surface).disabled(chat.busy || loadingPhotos)
     }
 
     private func dismissKeyboard() {
@@ -221,8 +246,19 @@ struct TurnCard: View {
                 Spacer()
                 Text(turn.createdAt, style: .time).font(.caption2).foregroundStyle(.secondary)
             }
-            if let data = turn.thumbnail, let image = UIImage(data: data) {
-                Image(uiImage: image).resizable().scaledToFit().frame(maxHeight: 180).clipShape(RoundedRectangle(cornerRadius: 12))
+            if let data = turn.thumbnail, UIImage(data: data) != nil {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 10) {
+                        ForEach(Array((turn.thumbnails ?? [data]).enumerated()), id: \.offset) { index, bytes in
+                            if let image = UIImage(data: bytes) {
+                                VStack(spacing: 4) {
+                                    Image(uiImage: image).resizable().scaledToFit().frame(height: 180).clipShape(RoundedRectangle(cornerRadius: 12))
+                                    if (turn.thumbnails?.count ?? 1) > 1 { Text("第\(index + 1)张").font(.caption2).foregroundStyle(.secondary) }
+                                }
+                            }
+                        }
+                    }
+                }
                 DisclosureGroup(l("识别出的原文", "認識した原文", "Recognized text")) { Text(turn.original).font(.caption).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }.font(.caption).foregroundStyle(.secondary)
             } else {
                 Text(turn.original).font(.subheadline).textSelection(.enabled)
@@ -272,5 +308,46 @@ struct ReplyCard: View {
                 Label(copied ? (own == "ja" ? "コピーしました" : "已复制") : (own == "ja" ? "返信をコピー" : (own == "en" ? "Copy reply" : "复制这条回复")), systemImage: copied ? "checkmark" : "doc.on.doc").font(.subheadline.weight(.semibold))
             }.disabled(edited.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }.padding(15).background(teal.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+
+struct SelectedScreenshot: Identifiable {
+    let id = UUID()
+    let data: Data
+}
+
+struct ScreenshotBatchView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State var images: [SelectedScreenshot]
+    let translate: ([SelectedScreenshot]) -> Void
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(Array(images.enumerated()), id: \.element.id) { index, item in
+                        HStack(alignment: .top, spacing: 15) {
+                            if let image = UIImage(data: item.data) {
+                                Image(uiImage: image).resizable().scaledToFit().frame(width: 85, height: 160).clipShape(RoundedRectangle(cornerRadius: 8))
+                            }
+                            VStack(alignment: .leading, spacing: 14) {
+                                Text("第 \(index + 1) 张").font(.headline)
+                                HStack(spacing: 20) {
+                                    Button { images.swapAt(index, index - 1) } label: { Image(systemName: "arrow.up") }.disabled(index == 0)
+                                    Button { images.swapAt(index, index + 1) } label: { Image(systemName: "arrow.down") }.disabled(index == images.count - 1)
+                                }.buttonStyle(.borderless)
+                                Button(role: .destructive) { images.remove(at: index) } label: { Label("移除", systemImage: "minus.circle") }.font(.caption).buttonStyle(.borderless)
+                            }
+                        }.padding(.vertical, 8)
+                    }.onMove { images.move(fromOffsets: $0, toOffset: $1) }
+                } header: { Text("按对话从早到晚排列") } footer: { Text("可用箭头调整顺序。提交后会把这些截图当作同一段对话分析，重叠消息只翻译一次。截图将发送到你设置的 OpenAI 进行分析。") }
+            }
+            .navigationTitle("确认截图顺序").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } } }
+            .safeAreaInset(edge: .bottom) {
+                Button { translate(images) } label: { Text("按此顺序翻译 \(images.count) 张").font(.headline).frame(maxWidth: .infinity).padding(14) }
+                    .buttonStyle(.borderedProminent).disabled(images.isEmpty).padding().background(Color(uiColor: .systemBackground))
+            }
+        }
     }
 }
