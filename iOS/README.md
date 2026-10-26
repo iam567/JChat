@@ -49,7 +49,7 @@ SwiftUI 原生 iPhone 聊天翻译器，最低支持 iOS 17，无第三方依赖
 ## 打开与安装
 
 1. 用 Xcode 打开 `iOS/JChat.xcodeproj`。
-2. 选中 JChat target，在 Signing & Capabilities 中选择自己的开发者 Team。项目当前使用原作者的 Team ID；其他开发者需要更换 Team 和唯一 Bundle Identifier。
+2. 选中 JChat target，在 Signing & Capabilities 中选择自己的开发者 Team。项目不预置个人 Team ID；选择自己的 Team，必要时更换唯一 Bundle Identifier。
 3. 连接并解锁 iPhone，启用开发者模式，在 Xcode 选择该设备，运行。
 4. 安装后在手机里的设置页输入自己的 API Key。
 
@@ -82,3 +82,5 @@ swiftc -parse-as-library iOS/JChat/Models.swift iOS/JChat/Services.swift iOS/JCh
 覆盖结构化响应解析、语言方向、自动语气、对话上下文、无效 Key、生成中断、本地历史保存/恢复/删除，以及使用真实 Vision 引擎识别日语图片；另覆盖语音断句、句尾刷新、60 分钟边界、多图请求顺序和语音译文解析。
 
 没有内置测试密钥。实际 OpenAI 翻译质量、账号额度和模型可用性需要使用者填入自己的 Key 后在手机上验证。
+
+项目整体说明见 [仓库首页](../README.md)，数据流见 [数据与隐私说明](../PRIVACY.md)。

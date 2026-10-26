@@ -17,3 +17,8 @@ xcuserdata/
 *.p12
 *.p8
 history.json
+
+.venv/
+.pytest_cache/
+.env.*
+!.env.example
