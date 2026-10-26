@@ -1,0 +1,39 @@
+// !$*UTF8*$!
+{archiveVersion = 1; classes = {}; objectVersion = 56; objects = {
+F6083AC9FD9E420E85E47B09 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VoiceTranslationView.swift"; sourceTree = "<group>";};
+4D3ED0D462B443A58A4ABCE4 = {isa = PBXBuildFile; fileRef = F6083AC9FD9E420E85E47B09;};
+B33752B8E2754CE28DC3B9A5 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VoiceTranslator.swift"; sourceTree = "<group>";};
+D290F61B49D1493682ADD073 = {isa = PBXBuildFile; fileRef = B33752B8E2754CE28DC3B9A5;};
+8C16517BCAC34B5CADEF8951 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SpeechSegments.swift"; sourceTree = "<group>";};
+A4AFF333CA5147AF9E054AE4 = {isa = PBXBuildFile; fileRef = 8C16517BCAC34B5CADEF8951;};
+21CFFFE64AF24BE5B3A15656 = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>";};
+A046CA5F005448CBAF138D5E = {isa = PBXBuildFile; fileRef = 21CFFFE64AF24BE5B3A15656;};
+9C4B6704F3FE443CB103E9C8 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services.swift"; sourceTree = "<group>";};
+FC781599375B4F13A91CFA82 = {isa = PBXBuildFile; fileRef = 9C4B6704F3FE443CB103E9C8;};
+1A728F529BD342BBB1CBF0E1 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView.swift"; sourceTree = "<group>";};
+77DF1A6BBEF94960B4BFE885 = {isa = PBXBuildFile; fileRef = 1A728F529BD342BBB1CBF0E1;};
+573F884168A94A0ABE7CDD64 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChatModel.swift"; sourceTree = "<group>";};
+60CB17850B7543918D796CFD = {isa = PBXBuildFile; fileRef = 573F884168A94A0ABE7CDD64;};
+E888052A1F0C40DC8FE9B391 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JChatApp.swift"; sourceTree = "<group>";};
+03880E57DF994CE1B1388739 = {isa = PBXBuildFile; fileRef = E888052A1F0C40DC8FE9B391;};
+E913E9F4F7FD4B1F847A68AF = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Models.swift"; sourceTree = "<group>";};
+5728C3FF7A734332A6BC29F1 = {isa = PBXBuildFile; fileRef = E913E9F4F7FD4B1F847A68AF;};
+E01025A3B05041F78A81494F = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView.swift"; sourceTree = "<group>";};
+96D7E916F7514F11B9796650 = {isa = PBXBuildFile; fileRef = E01025A3B05041F78A81494F;};
+272CDF9C550A4605B951F36D = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>";};
+6C7297275858445493B9EE0D = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JChat.app; sourceTree = BUILT_PRODUCTS_DIR;};
+9A638372AFF94C5A9CA19E68 = {isa = PBXGroup; children = (71B79D290838424ABDB65E5B, 13A6A0B5A80D43F4B46858A5); sourceTree = "<group>";};
+71B79D290838424ABDB65E5B = {isa = PBXGroup; children = (9C4B6704F3FE443CB103E9C8, 1A728F529BD342BBB1CBF0E1, 573F884168A94A0ABE7CDD64, E888052A1F0C40DC8FE9B391, E913E9F4F7FD4B1F847A68AF, E01025A3B05041F78A81494F, 272CDF9C550A4605B951F36D, 21CFFFE64AF24BE5B3A15656, 8C16517BCAC34B5CADEF8951, B33752B8E2754CE28DC3B9A5, F6083AC9FD9E420E85E47B09); path = JChat; sourceTree = "<group>";};
+13A6A0B5A80D43F4B46858A5 = {isa = PBXGroup; children = (6C7297275858445493B9EE0D); name = Products; sourceTree = "<group>";};
+B73989008ACF45C3ABFF9102 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A4AFF333CA5147AF9E054AE4, D290F61B49D1493682ADD073, 4D3ED0D462B443A58A4ABCE4, FC781599375B4F13A91CFA82, 77DF1A6BBEF94960B4BFE885, 60CB17850B7543918D796CFD, 03880E57DF994CE1B1388739, 5728C3FF7A734332A6BC29F1, 96D7E916F7514F11B9796650); runOnlyForDeploymentPostprocessing = 0;};
+C43D5CF919374256A0388152 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
+8D83E43CDEB14B00814182B5 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A046CA5F005448CBAF138D5E); runOnlyForDeploymentPostprocessing = 0;};
+3DEEE472A714450F8820D3DE = {isa = PBXNativeTarget; buildConfigurationList = 908E76673BC34B5D9F7E4441; buildPhases = (B73989008ACF45C3ABFF9102, C43D5CF919374256A0388152, 8D83E43CDEB14B00814182B5); buildRules = (); dependencies = (); name = JChat; productName = JChat; productReference = 6C7297275858445493B9EE0D; productType = "com.apple.product-type.application";};
+15FCF5901DAE4B95903DDF21 = {isa = PBXProject; attributes = {LastSwiftUpdateCheck = 2700; LastUpgradeCheck = 2700; TargetAttributes = {3DEEE472A714450F8820D3DE = {CreatedOnToolsVersion = 27.1;  }; }; }; buildConfigurationList = 923DE51692AC458C9AFA3208; compatibilityVersion = "Xcode 14.0"; developmentRegion = zh-Hans; hasScannedForEncodings = 0; knownRegions = (en, Base, "zh-Hans", ja); mainGroup = 9A638372AFF94C5A9CA19E68; productRefGroup = 13A6A0B5A80D43F4B46858A5; projectDirPath = ""; projectRoot = ""; targets = (3DEEE472A714450F8820D3DE);};
+AAD2415A2D1F4BE1A3EB22BE = {isa = XCBuildConfiguration; name = Debug; buildSettings = {SDKROOT = iphoneos; IPHONEOS_DEPLOYMENT_TARGET = 17.0; CLANG_ENABLE_MODULES = YES; SWIFT_VERSION = 5.0; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; DEBUG_INFORMATION_FORMAT = dwarf; };};
+BA25C547B1704843ABD6F706 = {isa = XCBuildConfiguration; name = Debug; buildSettings = {CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = ""; PRODUCT_BUNDLE_IDENTIFIER = pro.areu.jchat; PRODUCT_NAME = "$(TARGET_NAME)"; INFOPLIST_FILE = JChat/Info.plist; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; ENABLE_PREVIEWS = YES; ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; GENERATE_INFOPLIST_FILE = NO; };};
+BE94963B70284C4CA4C7487B = {isa = XCBuildConfiguration; name = Release; buildSettings = {SDKROOT = iphoneos; IPHONEOS_DEPLOYMENT_TARGET = 17.0; CLANG_ENABLE_MODULES = YES; SWIFT_VERSION = 5.0; SWIFT_OPTIMIZATION_LEVEL = "-O"; DEBUG_INFORMATION_FORMAT = dwarf; };};
+26A2C93D3DBC4E33A2AC365E = {isa = XCBuildConfiguration; name = Release; buildSettings = {CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = ""; PRODUCT_BUNDLE_IDENTIFIER = pro.areu.jchat; PRODUCT_NAME = "$(TARGET_NAME)"; INFOPLIST_FILE = JChat/Info.plist; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; ENABLE_PREVIEWS = YES; ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; GENERATE_INFOPLIST_FILE = NO; };};
+923DE51692AC458C9AFA3208 = {isa = XCConfigurationList; buildConfigurations = (AAD2415A2D1F4BE1A3EB22BE, BE94963B70284C4CA4C7487B); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+908E76673BC34B5D9F7E4441 = {isa = XCConfigurationList; buildConfigurations = (BA25C547B1704843ABD6F706, 26A2C93D3DBC4E33A2AC365E); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+}; rootObject = 15FCF5901DAE4B95903DDF21;}

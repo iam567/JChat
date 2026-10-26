@@ -1,0 +1,364 @@
+import SwiftUI
+import PhotosUI
+
+private let teal = Color(uiColor: UIColor { traits in
+    traits.userInterfaceStyle == .dark
+        ? UIColor(red: 0.40, green: 0.86, blue: 0.81, alpha: 1)
+        : UIColor(red: 0.06, green: 0.39, blue: 0.43, alpha: 1)
+})
+private let canvas = Color(uiColor: .systemGroupedBackground)
+private let card = Color(uiColor: .secondarySystemGroupedBackground)
+private let surface = Color(uiColor: .systemBackground)
+
+struct ContentView: View {
+    @StateObject private var chat = ChatModel()
+    @AppStorage("myLanguage") private var own = "zh"
+    @AppStorage("targetLanguage") private var target = "ja"
+    @AppStorage("tone") private var tone = "auto"
+    @AppStorage("openAIModel") private var model = "gpt-6.1-sol"
+    @State private var settings = false
+    @State private var selectedPhotos: [PhotosPickerItem] = []
+    @State private var screenshotBatch: [SelectedScreenshot] = []
+    @State private var showScreenshotBatch = false
+    @State private var loadingPhotos = false
+    @State private var clearAll = false
+    @State private var newChat = false
+    @State private var editCandidate: Turn?
+    @State private var confirmEdit = false
+    @FocusState private var composerFocused: Bool
+
+    var effectiveOwn: String { chat.current?.myLanguage ?? own }
+    var effectiveTarget: String { chat.current?.targetLanguage ?? target }
+    func l(_ zh: String, _ ja: String, _ en: String) -> String {
+        switch own { case "ja": return ja; case "en": return en; default: return zh }
+    }
+
+    var body: some View {
+        TabView(selection: $chat.tab) {
+            NavigationStack {
+                VStack(spacing: 0) {
+                    controls
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 20) {
+                                ForEach(chat.current?.turns ?? []) { turn in
+                                    TurnCard(turn: turn, own: effectiveOwn, busy: chat.busy) {
+                                        if !chat.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && chat.draft != turn.original {
+                                            editCandidate = turn; confirmEdit = true
+                                        } else {
+                                            chat.edit(turn); composerFocused = true
+                                        }
+                                    }
+                                }
+                                if chat.busy {
+                                    HStack(spacing: 10) { ProgressView(); Text(chat.progress).font(.subheadline).foregroundStyle(.secondary) }
+                                        .padding().frame(maxWidth: .infinity, alignment: .leading).background(card, in: RoundedRectangle(cornerRadius: 18))
+                                }
+                                if !chat.busy, chat.pendingText != nil || chat.pendingImage != nil {
+                                    Button { Task { await retry() } } label: { Label(l("重试上次翻译", "もう一度翻訳", "Retry translation"), systemImage: "arrow.clockwise") }
+                                }
+                                Color.clear.frame(height: 1).id("bottom")
+                            }.padding(18)
+                        }
+                        .onChange(of: chat.current?.turns.count) { _, _ in withAnimation { proxy.scrollTo("bottom", anchor: .bottom) } }
+                        .onChange(of: chat.busy) { _, busy in
+                            if busy { dismissKeyboard() }
+                            withAnimation { proxy.scrollTo("bottom", anchor: .bottom) }
+                        }
+                        .scrollDismissesKeyboard(.interactively)
+                    }
+                    composer
+                }
+                .background(canvas)
+                .navigationTitle("JChat")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { if chat.current == nil { chat.startNew() } else { newChat = true } } label: { HStack(spacing: 5) { Image(systemName: "plus"); Text(l("新对话", "新しい会話", "New chat")).font(.subheadline) } }
+                            .accessibilityLabel(l("新对话", "新しい会話", "New conversation")).disabled(chat.busy)
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { settings = true } label: { Image(systemName: "gearshape") }
+                            .accessibilityLabel(l("设置", "設定", "Settings")).disabled(chat.busy)
+                    }
+                }
+            }
+            .tabItem { Label(l("直接翻译", "翻訳", "Translate"), systemImage: "bubble.left.and.text.bubble.right") }.tag(0)
+
+            Group {
+                if #available(iOS 26.0, *) {
+                    VoiceTranslationView { chat.saveVoiceHistory($0) }
+                } else {
+                    ContentUnavailableView("语音翻译需要 iOS 26 或更新系统", systemImage: "mic", description: Text("直接翻译和历史仍可正常使用"))
+                }
+            }.tabItem { Label(l("语音翻译", "音声翻訳", "Voice"), systemImage: "mic.fill") }.tag(2)
+
+            NavigationStack {
+                Group {
+                    if chat.histories.isEmpty {
+                        ContentUnavailableView(l("还没有翻译历史", "履歴はありません", "No translation history"), systemImage: "clock.arrow.circlepath", description: Text(l("翻译过的对话会自动保存在这里", "翻訳した会話はここに自動保存されます", "Your translations are saved here automatically")))
+                    } else {
+                        List {
+                            ForEach(chat.histories) { item in
+                                Button { chat.open(item) } label: {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text(item.title).font(.headline).foregroundStyle(.primary).lineLimit(2)
+                                        HStack {
+                                            Text("\(AppLanguage.name(item.myLanguage)) ↔ \(AppLanguage.name(item.targetLanguage))")
+                                            Spacer()
+                                            Text(item.createdAt, format: .dateTime.month().day().hour().minute())
+                                        }.font(.caption).foregroundStyle(.secondary)
+                                    }.padding(.vertical, 5)
+                                }.disabled(chat.busy)
+                            }.onDelete { offsets in chat.remove(Set(offsets.map { chat.histories[$0].id })) }
+                        }
+                    }
+                }
+                .navigationTitle(l("翻译历史", "翻訳履歴", "History"))
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(role: .destructive) { clearAll = true } label: { Image(systemName: "trash") }.disabled(chat.busy || chat.histories.isEmpty)
+                    }
+                }
+            }
+            .tabItem { Label(l("翻译历史", "履歴", "History"), systemImage: "clock.arrow.circlepath") }.tag(1)
+        }
+        .confirmationDialog(l("用这条原文替换输入框中的草稿？", "入力中の文章をこの原文に置き換えますか？", "Replace your draft with this original message?"), isPresented: $confirmEdit, titleVisibility: .visible) {
+            Button(l("编辑这条原文", "この原文を編集", "Edit this original")) {
+                if let turn = editCandidate { chat.edit(turn); composerFocused = true }
+                editCandidate = nil
+            }
+        }
+        .tint(teal)
+        .sheet(isPresented: $settings) { SettingsView(own: $own, target: $target, model: $model) }
+        .onChange(of: selectedPhotos) { _, items in
+            guard !items.isEmpty else { return }
+            loadingPhotos = true
+            Task {
+                do {
+                    var selected: [SelectedScreenshot] = []
+                    for item in items {
+                        guard let data = try await item.loadTransferable(type: Data.self), UIImage(data: data) != nil else { throw ChatError(message: "有一张图片无法读取，请重新选择") }
+                        selected.append(SelectedScreenshot(data: data))
+                    }
+                    screenshotBatch = selected
+                    showScreenshotBatch = true
+                } catch { chat.error = error.localizedDescription }
+                loadingPhotos = false; selectedPhotos = []
+            }
+        }
+        .sheet(isPresented: $showScreenshotBatch, onDismiss: { screenshotBatch = [] }) {
+            ScreenshotBatchView(images: screenshotBatch) { ordered in
+                showScreenshotBatch = false
+                dismissKeyboard()
+                Task { await chat.screenshots(ordered.map(\.data), own: effectiveOwn, target: effectiveTarget, tone: tone, model: model) }
+            }
+        }
+        .overlay { if loadingPhotos { ProgressView("正在读取图片…").padding(24).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18)) } }
+        .alert(l("提示", "お知らせ", "Notice"), isPresented: Binding(get: { chat.error != nil }, set: { if !$0 { chat.error = nil } })) {
+            Button(l("知道了", "OK", "OK"), role: .cancel) { chat.error = nil }
+        } message: { Text(chat.error ?? "") }
+        .confirmationDialog(l("清空所有翻译历史？", "すべての履歴を削除しますか？", "Delete all history?"), isPresented: $clearAll, titleVisibility: .visible) {
+            Button(l("全部删除", "すべて削除", "Delete all"), role: .destructive) { chat.remove(Set(chat.histories.map(\.id))) }
+        }
+        .confirmationDialog(l("开启新对话？当前内容已保存到历史。", "新しい会話を開始しますか？現在の会話は保存されています。", "Start a new conversation? This one is saved."), isPresented: $newChat, titleVisibility: .visible) {
+            Button(l("新对话", "新しい会話", "New conversation")) { chat.startNew() }
+        }
+    }
+
+    private var controls: some View {
+        VStack(spacing: 10) {
+            HStack {
+                Text(AppLanguage.name(effectiveOwn)).fontWeight(.semibold)
+                Image(systemName: "arrow.left.arrow.right").font(.caption).foregroundStyle(.secondary)
+                Menu {
+                    ForEach(AppLanguage.all) { language in
+                        Button(language.name) {
+                            target = language.id
+                            if chat.current != nil {
+                                chat.current?.targetLanguage = language.id
+                            }
+                        }
+                    }
+                } label: { Text(AppLanguage.name(effectiveTarget)); Image(systemName: "chevron.down").font(.caption2) }
+                Spacer()
+                Menu {
+                    ForEach(Tone.all) { item in Button(item.name) { tone = item.id } }
+                } label: { Text(Tone.all.first { $0.id == tone }?.name ?? "AI 自动判断").font(.subheadline); Image(systemName: "chevron.down").font(.caption2) }
+            }
+            if chat.current != nil, chat.current?.myLanguage != own {
+                Text(l("这段历史使用原来的语言设置；新对话会使用你的新设置", "この会話は元の言語設定を使用します", "This conversation keeps its original language settings")).font(.caption).foregroundStyle(.secondary)
+            }
+        }.padding(.horizontal, 18).padding(.vertical, 12).background(surface).disabled(chat.busy)
+    }
+
+    private var composer: some View {
+        VStack(spacing: 12) {
+            if chat.editingTurnID != nil {
+                HStack {
+                    Label(l("正在编辑原文，发送后重新生成", "原文を編集中・送信で再翻訳", "Editing original · send to regenerate"), systemImage: "pencil").font(.caption)
+                    Spacer()
+                    Button(l("取消", "キャンセル", "Cancel")) { chat.cancelEdit(); dismissKeyboard() }.font(.caption)
+                }.foregroundStyle(teal)
+            }
+            HStack(spacing: 10) {
+                Button { dismissKeyboard(); Task { await chat.latest(own: effectiveOwn, target: effectiveTarget, tone: tone, model: model) } } label: {
+                    Label(l("翻译最新截图", "最新のスクショを翻訳", "Latest screenshot"), systemImage: "camera.viewfinder").font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 12)
+                }.background(teal.opacity(0.14), in: RoundedRectangle(cornerRadius: 14))
+                PhotosPicker(selection: $selectedPhotos, maxSelectionCount: 10, selectionBehavior: .ordered, matching: .images, photoLibrary: .shared()) {
+                    Image(systemName: "photo.on.rectangle").font(.title3).frame(width: 48, height: 44).background(teal.opacity(0.14), in: RoundedRectangle(cornerRadius: 14))
+                }.accessibilityLabel(l("从相册选图", "写真から選ぶ", "Choose photo"))
+            }
+            Picker("方向", selection: $chat.incoming) {
+                Text(l("我要回复", "返信する", "My reply")).tag(false)
+                Text(l("对方说", "相手の発言", "Their message")).tag(true)
+            }.pickerStyle(.segmented)
+            HStack(alignment: .bottom, spacing: 10) {
+                TextField("", text: $chat.draft, prompt: Text(chat.incoming ? l("粘贴对方说的话，翻译成", "相手の文章を貼り付け →", "Paste their message →") + AppLanguage.name(effectiveOwn) : l("输入想回复的话 → ", "返信したい内容 → ", "Type your reply → ") + AppLanguage.name(effectiveTarget)).foregroundStyle(.secondary), axis: .vertical)
+                    .focused($composerFocused)
+                    .lineLimit(1...5).foregroundStyle(.primary).padding(12).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
+                Button {
+                    dismissKeyboard()
+                    Task { await chat.suggest(own: effectiveOwn, target: effectiveTarget, tone: tone, model: model) }
+                } label: {
+                    VStack(spacing: 3) {
+                        Image(systemName: "sparkles").font(.system(size: 16, weight: .semibold))
+                        Text(l("AI建议", "AI提案", "Suggest")).font(.system(size: 10, weight: .semibold))
+                    }.frame(width: 48, height: 46).background(teal.opacity(0.14), in: RoundedRectangle(cornerRadius: 14))
+                }.accessibilityLabel(l("根据对话生成AI回复建议", "会話に基づく返信の提案", "Suggest replies based on this conversation"))
+                Button { dismissKeyboard(); Task { await chat.send(own: effectiveOwn, target: effectiveTarget, tone: tone, model: model) } } label: {
+                    Image(systemName: "arrow.up").font(.title3.bold()).foregroundStyle(surface).frame(width: 46, height: 46).background(teal, in: RoundedRectangle(cornerRadius: 15))
+                }.disabled(chat.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).accessibilityLabel(l("发送", "送信", "Send"))
+            }
+        }.padding(14).background(surface).disabled(chat.busy || loadingPhotos)
+    }
+
+    private func dismissKeyboard() {
+        composerFocused = false
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+
+    private func retry() async { await chat.retry(own: effectiveOwn, target: effectiveTarget, tone: tone, model: model) }
+}
+
+struct TurnCard: View {
+    let turn: Turn
+    let own: String
+    let busy: Bool
+    let onEdit: () -> Void
+    @State private var copiedOriginal = false
+    func l(_ zh: String, _ ja: String, _ en: String) -> String { own == "ja" ? ja : (own == "en" ? en : zh) }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Label(turn.generatedSuggestion == true ? l("AI建议", "AI提案", "AI suggestions") : turn.kind == "outgoing" ? l("我要回复", "返信する", "My reply") : l("对方说", "相手の発言", "Their message"), systemImage: turn.generatedSuggestion == true ? "sparkles" : (turn.kind == "outgoing" ? "arrow.up.right" : "arrow.down.left")).font(.caption.weight(.semibold)).foregroundStyle(teal)
+                Spacer()
+                Text(turn.createdAt, style: .time).font(.caption2).foregroundStyle(.secondary)
+            }
+            if let data = turn.thumbnail, UIImage(data: data) != nil {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 10) {
+                        ForEach(Array((turn.thumbnails ?? [data]).enumerated()), id: \.offset) { index, bytes in
+                            if let image = UIImage(data: bytes) {
+                                VStack(spacing: 4) {
+                                    Image(uiImage: image).resizable().scaledToFit().frame(height: 180).clipShape(RoundedRectangle(cornerRadius: 12))
+                                    if (turn.thumbnails?.count ?? 1) > 1 { Text("第\(index + 1)张").font(.caption2).foregroundStyle(.secondary) }
+                                }
+                            }
+                        }
+                    }
+                }
+                DisclosureGroup(l("识别出的原文", "認識した原文", "Recognized text")) { Text(turn.original).font(.caption).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }.font(.caption).foregroundStyle(.secondary)
+            } else if turn.generatedSuggestion != true {
+                Text(turn.original).font(.subheadline).textSelection(.enabled)
+            }
+            if turn.generatedSuggestion != true {
+            HStack(spacing: 18) {
+                Button {
+                    UIPasteboard.general.string = turn.original
+                    copiedOriginal = true
+                    Task { try? await Task.sleep(for: .seconds(1.5)); copiedOriginal = false }
+                } label: {
+                    Label(copiedOriginal ? l("已复制", "コピーしました", "Copied") : l("复制原文", "原文をコピー", "Copy original"), systemImage: copiedOriginal ? "checkmark" : "doc.on.doc")
+                }
+                Button(action: onEdit) {
+                    Label(l("编辑并重新翻译", "編集して再翻訳", "Edit and translate again"), systemImage: "square.and.pencil")
+                }.disabled(busy)
+            }.font(.caption.weight(.semibold))
+            }
+            if turn.revises != nil {
+                Text(l("修改后重新生成", "編集後の翻訳", "Regenerated after editing")).font(.caption2).foregroundStyle(.secondary)
+            }
+            if turn.kind != "outgoing" {
+                Divider()
+                Text(turn.result.translation).lineSpacing(5).textSelection(.enabled)
+            }
+            if !turn.result.summary.isEmpty {
+                Text(turn.result.summary).font(.subheadline).foregroundStyle(.secondary).lineSpacing(4)
+            }
+            ForEach(Array(turn.result.replies.enumerated()), id: \.offset) { _, reply in ReplyCard(reply: reply, own: own) }
+        }.padding(18).frame(maxWidth: .infinity, alignment: .leading).background(card, in: RoundedRectangle(cornerRadius: 20))
+    }
+}
+
+struct ReplyCard: View {
+    let reply: Reply
+    let own: String
+    @State private var edited: String
+    @State private var copied = false
+    init(reply: Reply, own: String) { self.reply = reply; self.own = own; _edited = State(initialValue: reply.text) }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            TextField("", text: $edited, axis: .vertical).lineLimit(2...12).lineSpacing(4)
+            Text(reply.note).font(.caption).foregroundStyle(.secondary).lineSpacing(3)
+            Button {
+                UIPasteboard.general.string = edited
+                copied = true
+                Task { try? await Task.sleep(for: .seconds(1.5)); copied = false }
+            } label: {
+                Label(copied ? (own == "ja" ? "コピーしました" : "已复制") : (own == "ja" ? "返信をコピー" : (own == "en" ? "Copy reply" : "复制这条回复")), systemImage: copied ? "checkmark" : "doc.on.doc").font(.subheadline.weight(.semibold))
+            }.disabled(edited.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }.padding(15).background(teal.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+
+struct SelectedScreenshot: Identifiable {
+    let id = UUID()
+    let data: Data
+}
+
+struct ScreenshotBatchView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State var images: [SelectedScreenshot]
+    let translate: ([SelectedScreenshot]) -> Void
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(Array(images.enumerated()), id: \.element.id) { index, item in
+                        HStack(alignment: .top, spacing: 15) {
+                            if let image = UIImage(data: item.data) {
+                                Image(uiImage: image).resizable().scaledToFit().frame(width: 85, height: 160).clipShape(RoundedRectangle(cornerRadius: 8))
+                            }
+                            VStack(alignment: .leading, spacing: 14) {
+                                Text("第 \(index + 1) 张").font(.headline)
+                                HStack(spacing: 20) {
+                                    Button { images.swapAt(index, index - 1) } label: { Image(systemName: "arrow.up") }.disabled(index == 0)
+                                    Button { images.swapAt(index, index + 1) } label: { Image(systemName: "arrow.down") }.disabled(index == images.count - 1)
+                                }.buttonStyle(.borderless)
+                                Button(role: .destructive) { images.remove(at: index) } label: { Label("移除", systemImage: "minus.circle") }.font(.caption).buttonStyle(.borderless)
+                            }
+                        }.padding(.vertical, 8)
+                    }.onMove { images.move(fromOffsets: $0, toOffset: $1) }
+                } header: { Text("按对话从早到晚排列") } footer: { Text("可用箭头调整顺序。提交后会把这些截图当作同一段对话分析，重叠消息只翻译一次。截图将发送到你设置的 OpenAI 进行分析。") }
+            }
+            .navigationTitle("确认截图顺序").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } } }
+            .safeAreaInset(edge: .bottom) {
+                Button { translate(images) } label: { Text("按此顺序翻译 \(images.count) 张").font(.headline).frame(maxWidth: .infinity).padding(14) }
+                    .buttonStyle(.borderedProminent).disabled(images.isEmpty).padding().background(Color(uiColor: .systemBackground))
+            }
+        }
+    }
+}

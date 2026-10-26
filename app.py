@@ -6,7 +6,7 @@ app = Flask(__name__)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.jinja_env.auto_reload = True
 app.config['TEMPLATES_FOLDER'] = os.path.join(os.path.dirname(__file__), 'templates')
-app.secret_key = 'chatrans_secret_2026'
+app.secret_key = os.environ.get('FLASK_SECRET_KEY') or os.urandom(32)
 
 DATA_FILE = os.path.join(os.path.dirname(__file__), 'data.json')
 
@@ -229,4 +229,4 @@ def save_settings():
     return jsonify({'ok': True})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8090, debug=False)
+    app.run(host=os.environ.get('HOST', '127.0.0.1'), port=int(os.environ.get('PORT', '8090')), debug=False)
